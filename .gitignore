@@ -16,6 +16,7 @@ backend/app/data/models/*.json
 # Node / frontend
 frontend/node_modules/
 frontend/dist/
+frontend/*.tsbuildinfo
 
 # OS / editor
 .DS_Store

@@ -1,12 +1,16 @@
+// NOTE: We deliberately avoid Intl's `notation: 'compact'` for INR here.
+// Some bundled Chromium/ICU builds mislabel the Indian-locale thousands
+// suffix (observed rendering "T" instead of "K" for values like ₹3,900),
+// so we compute the Lakh/Crore-based compact form explicitly instead.
 export function formatCurrency(value: number | null | undefined, opts: { compact?: boolean } = {}): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—';
   if (opts.compact) {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(value);
+    const sign = value < 0 ? '-' : '';
+    const abs = Math.abs(value);
+    if (abs >= 1e7) return `${sign}₹${(abs / 1e7).toFixed(abs >= 1e8 ? 1 : 2)}Cr`;
+    if (abs >= 1e5) return `${sign}₹${(abs / 1e5).toFixed(abs >= 1e6 ? 1 : 2)}L`;
+    if (abs >= 1e3) return `${sign}₹${(abs / 1e3).toFixed(1)}K`;
+    return `${sign}₹${abs.toFixed(0)}`;
   }
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -36,9 +40,14 @@ export function formatProbabilityPct(value: number | null | undefined, digits = 
   return `${(value * 100).toFixed(digits)}%`;
 }
 
+// Same ICU-safety rationale as formatCurrency's compact path above.
 export function formatVolume(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—';
-  return new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+  const abs = Math.abs(value);
+  if (abs >= 1e7) return `${(abs / 1e7).toFixed(abs >= 1e8 ? 1 : 2)}Cr`;
+  if (abs >= 1e5) return `${(abs / 1e5).toFixed(abs >= 1e6 ? 1 : 2)}L`;
+  if (abs >= 1e3) return `${(abs / 1e3).toFixed(1)}K`;
+  return `${Math.round(abs)}`;
 }
 
 export function formatDate(value: string | null | undefined): string {
