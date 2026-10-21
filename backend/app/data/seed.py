@@ -1,16 +1,23 @@
 """Development seed script.
 
-Creates the database schema (if needed), a demo user with a populated
-portfolio, synthetic market history for the seeded stock universe, sample
-news + sentiment, and trains the ML direction-classifier so predictions
-work immediately after seeding.
+Seeds a demo user with a populated portfolio, synthetic market history for
+the seeded stock universe, sample news + sentiment, and trains the ML
+direction-classifier so predictions work immediately after seeding.
 
-Run with:  python -m app.data.seed
+As of Phase 4, this does NOT create the schema itself -- that's Alembic's
+job now (see backend/alembic/). Run migrations first:
+
+    alembic upgrade head
+    python -m app.data.seed
 """
 
 from __future__ import annotations
 
-from app.database.session import Base, SessionLocal, engine
+import sys
+
+from sqlalchemy import inspect
+
+from app.database.session import SessionLocal, engine
 from app.ml.predict import PredictionService
 from app.ml.train import train_and_select_model
 from app.models.portfolio import Holding, Portfolio
@@ -40,8 +47,14 @@ ALL_SYMBOLS = [h[0] for h in HOLDINGS] + DISCOVER_ONLY_SYMBOLS
 
 
 def seed():
-    print("Creating database tables...")
-    Base.metadata.create_all(bind=engine)
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        print(
+            "No tables found. Schema is now managed by Alembic, not this script.\n"
+            "Run:  alembic upgrade head\nThen re-run this seed script.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     db = SessionLocal()
     try:

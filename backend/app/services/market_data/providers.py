@@ -207,11 +207,37 @@ class LiveYFinanceProvider(MarketDataProvider):
     by default in this development environment (no external network access),
     but implemented so a production deployment can flip ``USE_LIVE_MARKET_DATA``
     on without any other code changes.
+
+    Cache-first (Phase 4): before calling the network, this checks the local
+    Parquet cache (``app/services/market_data/cache.py``), populated by
+    running ``backend/scripts/fetch_nifty100.py`` on a machine with internet
+    access. This lets tests, CI, and this sandbox exercise the live-data code
+    path against *real*, previously-fetched history without needing live
+    network access at request time. If a symbol isn't cached, this falls
+    through to an actual network call (which will fail here, by design --
+    see docs/limitations.md).
     """
 
     source = DataSource.LIVE
 
     def get_history(self, symbol: str, days: int = 365) -> list[OHLCVBar]:
+        from app.services.market_data import cache
+
+        cached = cache.read_cache(symbol)
+        if cached is not None:
+            tail = cached.tail(days)
+            return [
+                OHLCVBar(
+                    date=row["date"],
+                    open=float(row["open"]),
+                    high=float(row["high"]),
+                    low=float(row["low"]),
+                    close=float(row["close"]),
+                    volume=int(row["volume"]),
+                )
+                for _, row in tail.iterrows()
+            ]
+
         import yfinance as yf  # local import: optional dependency
 
         ticker = yf.Ticker(f"{symbol}.NS")
