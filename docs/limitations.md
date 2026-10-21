@@ -263,6 +263,49 @@ UI, the methodology doc, or a future paper, it's listed here.
   degrades safely to "no filtering happened," but worth knowing if a
   sector exclusion doesn't seem to be taking effect.
 
+## Backtesting (Phase 13)
+
+- **The Deflated Sharpe Ratio formula was not independently verified
+  against the original Bailey & Lopez de Prado (2014) paper.** This
+  sandbox has no network access to fetch it. It was implemented after
+  cross-checking three independent secondary sources that converged on
+  the same formula structure, but has not been checked against any
+  published reference numerical example. Treat the DSR number this
+  project produces as demonstrating the methodology runs correctly, not
+  as a verified reproduction of the published metric. If this project
+  is used for a paper/IP submission, re-derive and check this formula
+  against the primary source before citing a DSR value from this code.
+- **N=3 trials (the three Phase 6 candidate model types) is far smaller
+  than the asymptotic extreme-value approximation underlying SR0 is
+  designed for.** The DSR this produces is a real, honestly-computed
+  number from real code, but should not be read as a statistically
+  reliable multiple-testing correction at this trial count — more trials
+  (more candidate strategies/models actually tested) would be needed for
+  the approximation to be trustworthy.
+- **The backtested "strategy" is a simplified long/flat signal
+  (probability >= 0.55 → long, else flat)** — not a realistic trading
+  strategy (no position sizing, no transaction costs, no slippage, can't
+  go short). It exists to produce a real return series for the
+  Sharpe/VaR/DSR/bootstrap machinery to operate on, not as a strategy
+  recommendation.
+- **All Phase 13 numbers are measured on synthetic DEV_SAMPLE data** —
+  the same caveat as Phase 6: a random walk has no real learnable signal
+  by construction, so the ML strategy honestly underperforming
+  buy-and-hold here says the methodology works, not that the underlying
+  model is bad (or good) at predicting real markets. Must be re-measured
+  once the model trains on real cached NIFTY data.
+- **The ablation study reuses the uncalibrated AUC-ranking methodology**
+  from Phase 6's candidate selection (not the calibrated, backtested
+  Sharpe) — a feature group's effect on classification AUC and its
+  effect on backtested trading performance are related but not
+  identical questions; this project only measures the former for
+  ablation.
+- **The equity-curve x-axis is a pooled observation index, not a
+  calendar axis** — because folds and stocks are pooled together, a
+  given x position does not correspond to one real calendar date across
+  strategies in a visually intuitive way; this is stated directly in the
+  chart's axis label, not hidden.
+
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).

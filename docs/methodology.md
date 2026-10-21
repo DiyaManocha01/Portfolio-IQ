@@ -720,6 +720,131 @@ two similarly-weighted factors).
 
 ---
 
-*(Sections 10+ — backtesting, stress-test assumptions, counterfactual
-search, and the prediction ledger design — are added as each
-corresponding phase is implemented, not written in advance.)*
+## 10. Backtesting (Phase 13)
+
+Implemented in `backend/app/ml/backtest.py`, run via
+`backend/scripts/run_backtest.py`. Unlike the market-data/news fetch
+scripts, this needs **no network access** -- it runs entirely against
+data already in the local database, so (unlike Phases 4/7's fetch
+scripts) it was actually executed in this sandbox, and every number below
+is real output, not a projection of what the script would produce.
+
+### 10.1 What's backtested
+
+A simple long/flat strategy derived from the Phase 6 classifier: on each
+day the model predicts POSITIVE with probability >= 0.55 (the same
+threshold `app.ml.predict` uses for the POSITIVE direction label), the
+strategy "takes" that stock's realized next-day return; otherwise it's
+flat (0 return). Evaluated via the SAME purged walk-forward folds used
+for model selection (`app.ml.features.purged_walk_forward_splits`) --
+the model is retrained fresh on each fold's train split and only ever
+predicts on that fold's held-out test split, pooled across all seeded
+stocks. Compared against two baselines evaluated on the exact same
+pooled out-of-sample rows: buy-and-hold (always long) and naive momentum
+(long when yesterday's return was positive).
+
+### 10.2 Metrics computed
+
+Annualized return/volatility/Sharpe, max drawdown, historical VaR/CVaR
+(reusing Phase 8's exact `historical_var_cvar` function), a **Probabilistic/
+Deflated Sharpe Ratio** (PSR/DSR, Bailey & Lopez de Prado 2014) for the ML
+strategy, a **paired bootstrap** significance test against buy-and-hold,
+and a **feature-group ablation**.
+
+### 10.3 Deflated Sharpe Ratio — formula and an explicit verification caveat
+
+```
+SR0 = sqrt(V[SR_trials]) * [(1-gamma)*Phi^-1(1-1/N) + gamma*Phi^-1(1-1/(N*e))]
+PSR(SR*) = Phi( (SR_hat - SR*) * sqrt(T-1) / sqrt(1 - gamma3*SR_hat + ((gamma4-1)/4)*SR_hat^2) )
+DSR = PSR(SR0)
+```
+where `gamma` = Euler-Mascheroni constant (≈0.5772), `N` = number of
+trials, `V[SR_trials]` = variance of the trials' own per-period Sharpe
+ratios, `gamma3`/`gamma4` = the strategy return series' skewness and
+**Pearson (non-excess) kurtosis** (normal distribution = 3 -- scipy's
+`kurtosis(fisher=True)` default is *excess* kurtosis and must have 3
+added back before use here), `T` = number of return observations, all
+Sharpe ratios **per-period (daily), not annualized** (annualizing first
+would double-count the T-scaling).
+
+**This formula was NOT independently verified against the original
+Bailey & Lopez de Prado (2014) paper** -- this sandbox has no network
+access to fetch it. It was implemented after cross-checking three
+independent secondary sources (a Quantt write-up, the `endgame-ml`
+library's docs, and the `fynance` library's docs), which converged on the
+same structure above, including the "per-period not annualized" and
+"Pearson not excess kurtosis" conventions. It has not been checked
+against any of those libraries' own numerical reference output. Treat
+this implementation as demonstrating the methodology, not as a verified
+reproduction of the published metric -- see `docs/limitations.md`.
+
+`N` = 3 trials: the three candidate model types from Phase 6
+(`logistic_regression`, `random_forest`, `xgboost`), each independently
+backtested the same way to get its own per-period Sharpe; `V[SR_trials]`
+is the sample variance (ddof=1) across those three Sharpes. This is an
+honestly tiny trial count for an asymptotic extreme-value approximation
+designed for much larger N -- the resulting DSR number should be read
+accordingly (see 10.5).
+
+### 10.4 Paired bootstrap
+
+1000 resamples (with replacement) of matched (ML-strategy, buy-and-hold)
+daily return pairs from the same pooled out-of-sample rows; each
+resample's per-period Sharpe difference is recorded. Reports the mean
+difference, a 95% bootstrap confidence interval, and the fraction of
+resamples where the ML strategy's Sharpe did NOT exceed buy-and-hold's
+(a one-sided bootstrap p-value against "no improvement").
+
+### 10.5 Measured results (seeded demo portfolio, DEV_SAMPLE synthetic data)
+
+Reproducible via `python scripts/run_backtest.py` (selected model:
+`logistic_regression`, matching `model_metadata.json`):
+
+| Strategy | Ann. return | Ann. vol | Sharpe | Max drawdown | CVaR 95% |
+|---|---|---|---|---|---|
+| ML strategy | +1.46% | 9.02% | **-0.459** | -18.22% | 1.29% |
+| Buy and hold | +8.99% | 27.75% | **+0.233** | -31.91% | 3.58% |
+| Momentum | -0.34% | 19.00% | -0.239 | -40.18% | 2.92% |
+
+**The ML strategy underperforms buy-and-hold here** -- Sharpe -0.459 vs.
++0.233. The paired bootstrap confirms this isn't noise in the strategy's
+favor: mean Sharpe difference vs. buy-and-hold = **-0.0161** (per-period),
+95% CI **[-0.0611, +0.0246]** (includes zero -- not statistically
+distinguishable from "no effect" either way at this sample size), and
+**75.8%** of bootstrap resamples showed the ML strategy's Sharpe did NOT
+exceed buy-and-hold's. Deflated Sharpe Ratio = **0.619** (skewness 0.73,
+Pearson kurtosis 38.9 -- very fat-tailed, an expected consequence of a
+strategy that's flat most days and only occasionally takes a position) --
+a DSR well below a conventional ~0.95 "likely genuine skill" threshold,
+consistent with everything else here.
+
+**This is the expected, honest result, not a bug**: Phase 6 already
+reported this model's test AUC (~0.545) as barely above random on
+synthetic data, and this backtest is the same finding expressed as
+trading performance instead of a classification metric. Both numbers
+tell the same story from different angles.
+
+### 10.6 Feature-group ablation (same seeded data, `logistic_regression`)
+
+| Feature group removed | Mean validation AUC | Delta vs. full (0.5245) |
+|---|---|---|
+| *(none — full feature set)* | 0.5245 | 0.0000 |
+| returns (`return_1d`, `return_5d`) | 0.5147 | -0.0099 |
+| moving averages (`sma5/20_ratio`, `ema20_ratio`) | 0.5061 | **-0.0184** |
+| oscillators (`rsi_14`, `momentum_10d`) | 0.5272 | +0.0026 |
+| volatility (`volatility_10d`) | 0.5300 | +0.0055 |
+| volume (`volume_ratio`) | 0.5246 | +0.0001 |
+
+Removing moving-average features hurts the most (-0.0184 AUC); removing
+oscillator, volatility, or volume features doesn't hurt and even nudges
+AUC up slightly -- on synthetic random-walk data with no real structure,
+this kind of small, directionless fluctuation around 0.50-0.53 AUC is
+expected noise, not meaningful feature importance. This ablation should
+be re-run once the model trains on real NIFTY data before drawing any
+real conclusion about which features matter.
+
+---
+
+*(Sections 11+ — stress-test assumptions, counterfactual search, and the
+prediction ledger design — are added as each corresponding phase is
+implemented, not written in advance.)*

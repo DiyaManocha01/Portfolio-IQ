@@ -24,6 +24,9 @@ backend/app/data/cache/cache_manifest.json
 backend/app/data/news_cache/
 backend/app/data/finbert_eval_results.csv
 
+# Backtest output (regeneratable via scripts/run_backtest.py)
+backend/app/data/backtests/
+
 # Node / frontend
 frontend/node_modules/
 frontend/dist/

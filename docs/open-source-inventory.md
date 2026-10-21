@@ -45,6 +45,7 @@ to `requirements.txt` / `package.json`.
 | **scikit-base** (transitive, via pyportfolioopt's HRP path) | 0.13.2 | BSD-3-Clause | Phase 9 | sktime-ecosystem base classes |
 | **sparsediffpy** (transitive) | 0.6.1 | Apache-2.0 | Phase 9 | Sparse differentiation, cvxpy dependency |
 | **jinja2** (transitive) | 3.1.6 | BSD-3-Clause | Phase 9 | Templating, osqp dependency |
+| **scipy** | 1.17.1 | BSD-3-Clause | Phase 13 | Normal distribution CDF/quantile (`stats.norm`) and skew/kurtosis for the Deflated Sharpe Ratio backtest calculation. Already an indirect dependency of scikit-learn; promoted to an explicit, version-pinned direct dependency now that `app/ml/backtest.py` imports it directly. |
 
 All Phase 9 transitive dependencies checked individually — all permissive
 (MIT/Apache-2.0/BSD-3-Clause), no copyleft. None are pinned in
