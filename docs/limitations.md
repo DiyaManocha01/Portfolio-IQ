@@ -243,6 +243,26 @@ UI, the methodology doc, or a future paper, it's listed here.
   be far larger than the modeled transaction costs and is a materially
   different calculation this project does not attempt.
 
+## Personalized Discovery (Phase 12)
+
+- **Only sector exclusion is implemented as a preference** -- no
+  preferred-sector boost, no per-stock exclusion, no risk-level filter
+  beyond the existing preset selection. Scoped deliberately narrow to
+  avoid double-counting with the Fit Engine's own diversification
+  scoring (a "preferred sector" boost would overlap with what
+  dDiversification/dConcentration already measure).
+- **`top_factor`'s name can occasionally differ from what
+  `/portfolio-fit/{symbol}` would show for the same stock** in a close
+  contest between two similarly-weighted factors, since the two endpoints
+  z-score against different populations (Section 7.3) -- the underlying
+  `compute_fit_batch()` call is identical in method, but a different
+  batch can occasionally flip which factor ranks first by a small margin.
+- **No validation that `excluded_sectors` values match real sector
+  names** -- a typo'd sector name is silently a no-op (nothing in that
+  "sector" exists to filter), not an error. Not treated as a bug since it
+  degrades safely to "no filtering happened," but worth knowing if a
+  sector exclusion doesn't seem to be taking effect.
+
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).

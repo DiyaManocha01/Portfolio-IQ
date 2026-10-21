@@ -30,6 +30,17 @@ Body: `{ "email": str, "password": str }` -> same response shape as register (20
 ### GET /auth/me
 Response: `{ "id", "email", "full_name", "created_at" }`
 
+### GET /auth/me/preferences (Phase 12)
+Response: `{ "excluded_sectors": ["Energy"] }` (empty list if never set).
+
+### PUT /auth/me/preferences (Phase 12)
+Body: `{ "excluded_sectors": ["Energy", "Healthcare"] }` -> echoes the same
+shape back (200). Stocks in an excluded sector are hard-filtered out of
+`/discover` entirely (not a scoring penalty). A sector name that doesn't
+match anything real is a silent no-op, not an error. If excluding every
+present sector would empty the discovery list, discovery falls back to
+unfiltered rather than returning nothing.
+
 ---
 
 ## Portfolio (all require auth; operate on the current user's single portfolio)
@@ -251,14 +262,22 @@ headlines when `USE_LIVE_NEWS=true` and a local cache exists (see
 
 ## Discover & Portfolio Fit (the core USP)
 
-### GET /discover?limit=20 -> list, already sorted by portfolio_fit descending
+### GET /discover?limit=20&preset=balanced|risk_averse|growth_seeking&sector=... -> list, already sorted by portfolio_fit descending
 ```json
 [{ "symbol": "SUNPHARMA", "name": "Sun Pharmaceutical Industries", "sector": "Healthcare",
    "current_price": 1831.68, "ml_outlook": "NEUTRAL", "prediction_probability": 0.494,
    "volatility": 0.2012, "portfolio_fit": 75.6, "correlation_with_portfolio": 0.259,
-   "diversification_benefit": "High" | "Moderate" | "Low" }]
+   "diversification_benefit": "High" | "Moderate" | "Low",
+   "top_factor": { "name": "Diversification Impact", "explanation": "Adding this stock would change the diversification ratio by +0.047." } }]
 ```
-Page title MUST be "Stocks That May Fit Your Portfolio" -- never "Best Stocks" / "Stocks You Should Buy".
+Page title MUST be "Stocks That May Fit Your Portfolio" -- never "Best
+Stocks" / "Stocks You Should Buy". `preset` (Phase 10) overrides the
+user's risk-tolerance-derived default for this call; `sector`
+(case-insensitive) restricts to one sector. Candidates in any sector the
+user has excluded via `/auth/me/preferences` (Phase 12) never appear here
+at all. `top_factor` is the single highest-contribution factor from that
+stock's Fit breakdown -- render it as the one-line "why" in the list;
+drill into `/portfolio-fit/{symbol}` for the full breakdown.
 
 ### GET /portfolio-fit/{symbol}?preset=balanced|risk_averse|growth_seeking (Phase 10)
 ```json

@@ -24,6 +24,10 @@ class UserOut(BaseModel):
         from_attributes = True
 
 
+class UserPreferences(BaseModel):
+    excluded_sectors: list[str] = Field(default_factory=list)
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

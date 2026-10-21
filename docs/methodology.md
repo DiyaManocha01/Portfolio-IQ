@@ -671,6 +671,55 @@ holding is swapped and current prices.
 
 ---
 
-*(Sections 9+ — stress-test assumptions, counterfactual search, and the
-prediction ledger design — are added as each corresponding phase is
-implemented, not written in advance.)*
+## 9. Personalized Discovery (Phase 12)
+
+Implemented in `backend/app/portfolio/discover_service.py` and
+`backend/app/api/routes/auth.py` (`/auth/me/preferences`). Net-new,
+building on Phase 10's Fit Engine rather than superseding it.
+
+### 9.1 What's genuinely new here
+
+`/discover` already ranked by the Fit Engine as of Phase 10 -- this phase
+adds the two pieces that were still missing for "personalized": a way for
+the user to actually express a preference, and the Fit Engine's
+explainability surfaced in the list view itself, not only behind a
+per-stock drill-in.
+
+### 9.2 Sector exclusion preferences
+
+`PUT /auth/me/preferences` with `{"excluded_sectors": [...]}` stores the
+list as JSON in `UserProfile.preferences` -- a free-form `Text` column
+that has existed since Phase 1 and was unused until now, so this needed
+**no Alembic migration**. `/discover` hard-filters any stock in an
+excluded sector out of the candidate set entirely, before Fit scoring
+runs (not a scoring penalty -- a real exclusion). If every present sector
+happens to be excluded, discovery falls back to the unfiltered set rather
+than silently returning nothing -- a degenerate preference configuration
+should never produce an empty, unexplained result.
+
+### 9.3 Query parameters
+
+- `?preset=` -- overrides the user's risk-tolerance-derived default
+  preset for this call only (same pattern as `/portfolio-fit/{symbol}`).
+- `?sector=` -- restricts candidates to one sector (case-insensitive
+  exact match), for explicit sector browsing.
+
+### 9.4 `top_factor`
+
+Each `/discover` item now carries `top_factor: {name, explanation}` --
+the single highest-contribution factor from that stock's Fit breakdown
+(Phase 10's `factors[0]` after its descending sort). This is NOT
+independently computed; it's read directly from the same
+`compute_fit_batch()` call that produces `portfolio_fit`, so it is
+guaranteed consistent with the detailed breakdown a user would see by
+following through to `/portfolio-fit/{symbol}` (modulo the documented
+population-dependent score difference from Section 7.3 -- the top
+factor's *name* is far more stable across the two endpoints than the
+exact score, but is not guaranteed identical in a close contest between
+two similarly-weighted factors).
+
+---
+
+*(Sections 10+ — backtesting, stress-test assumptions, counterfactual
+search, and the prediction ledger design — are added as each
+corresponding phase is implemented, not written in advance.)*

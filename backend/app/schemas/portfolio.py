@@ -205,6 +205,11 @@ class WhatIfResult(BaseModel):
     disclaimer: str
 
 
+class TopFactor(BaseModel):
+    name: str
+    explanation: str
+
+
 class DiscoverItem(BaseModel):
     symbol: str
     name: str
@@ -216,3 +221,4 @@ class DiscoverItem(BaseModel):
     portfolio_fit: float
     correlation_with_portfolio: float
     diversification_benefit: str
+    top_factor: TopFactor
