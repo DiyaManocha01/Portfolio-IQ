@@ -46,6 +46,11 @@ BASE_PRICES: dict[str, float] = {
     "WIPRO": 550.0,
     "MARUTI": 11500.0,
     "SUNPHARMA": 1750.0,
+    # Benchmark index (Phase 5, for beta calculations). Level is an
+    # illustrative approximation, not fetched from a live source -- see
+    # docs/limitations.md. Only used to seed the synthetic DevSampleProvider
+    # series; LiveYFinanceProvider fetches the real ^NSEI level instead.
+    "^NSEI": 24500.0,
 }
 
 SECTORS: dict[str, tuple[str, str]] = {
@@ -148,9 +153,10 @@ class DevSampleProvider(MarketDataProvider):
         return [market_rng.gauss(0, 0.011) for _ in all_dates]
 
     def get_history(self, symbol: str, days: int = 365) -> list[OHLCVBar]:
+        is_index = symbol.startswith("^")  # e.g. ^NSEI -- see note below
         base_price = BASE_PRICES.get(symbol, 1000.0)
         rng = random.Random(self._seed_for(symbol))
-        beta = BETAS.get(symbol, 1.0)
+        beta = 1.0 if is_index else BETAS.get(symbol, 1.0)
 
         bars: list[OHLCVBar] = []
         price = base_price * 0.85  # start a bit below "current" so there's a visible trend
@@ -170,8 +176,16 @@ class DevSampleProvider(MarketDataProvider):
 
         market_shocks = self._market_shocks(all_dates)
 
+        # A broad index is approximately the diversified market factor itself
+        # -- real-world index idiosyncratic noise is much smaller than any
+        # single constituent's, since stock-specific moves average out
+        # across ~50-100 holdings. Modeled here by heavily damping the
+        # idiosyncratic term for index symbols rather than removing it
+        # entirely (a real index still has some tracking noise day to day).
+        idio_multiplier = 0.08 if is_index else 0.7
+
         for i, d in enumerate(all_dates):
-            idiosyncratic_shock = rng.gauss(0, daily_vol * 0.7)
+            idiosyncratic_shock = rng.gauss(0, daily_vol * idio_multiplier)
             market_shock = beta * market_shocks[i]
             mean_reversion = (base_price - price) / base_price * 0.02
             change = daily_drift + idiosyncratic_shock + market_shock + mean_reversion
@@ -240,7 +254,8 @@ class LiveYFinanceProvider(MarketDataProvider):
 
         import yfinance as yf  # local import: optional dependency
 
-        ticker = yf.Ticker(f"{symbol}.NS")
+        yf_symbol = symbol if symbol.startswith("^") else f"{symbol}.NS"
+        ticker = yf.Ticker(yf_symbol)
         hist = ticker.history(period=f"{days}d")
         bars = []
         for idx, row in hist.iterrows():

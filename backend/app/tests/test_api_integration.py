@@ -94,3 +94,30 @@ def test_portfolio_fit_endpoint(client, auth_headers):
     assert 0 <= body["fit_score"] <= 100
     assert len(body["factors"]) == 6
     assert abs(sum(body["weights_used"].values()) - 1.0) < 0.01
+
+
+def test_stock_analysis_endpoint(client, auth_headers):
+    resp = client.get("/stocks/TCS/analysis", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["symbol"] == "TCS"
+    assert len(body["series"]) > 0
+    assert body["volatility_annualized"] >= 0
+    assert -1 <= body["max_drawdown"] <= 0
+    # beta should be a plausible real number when returned, not a wild outlier
+    if body["beta_vs_nifty50"] is not None:
+        assert -5 <= body["beta_vs_nifty50"] <= 5
+    last_point = body["series"][-1]
+    assert last_point["close"] > 0
+    assert "disclaimer" in body and len(body["disclaimer"]) > 0
+
+
+def test_stock_analysis_short_window_still_works(client, auth_headers):
+    resp = client.get("/stocks/TCS/analysis?days=35", headers=auth_headers)
+    assert resp.status_code == 200
+    assert len(resp.json()["series"]) > 0
+
+
+def test_stock_analysis_unknown_symbol_404s(client, auth_headers):
+    resp = client.get("/stocks/NOTASTOCK/analysis", headers=auth_headers)
+    assert resp.status_code == 404

@@ -98,3 +98,35 @@ class SentimentSummary(BaseModel):
     trend: str
     article_count: int
     model_used: str
+
+
+class AnalysisPoint(BaseModel):
+    date: date
+    close: float
+    sma_20: float | None = None
+    ema_20: float | None = None
+    rsi_14: float | None = None
+    macd_line: float | None = None
+    macd_signal: float | None = None
+    macd_histogram: float | None = None
+
+
+class ReturnsSummary(BaseModel):
+    daily_return: float | None
+    cumulative_return_30d: float | None
+    cumulative_return_90d: float | None
+    cumulative_return_1y: float | None
+
+
+class StockAnalysis(BaseModel):
+    symbol: str
+    data_source: str
+    returns: ReturnsSummary
+    volatility_annualized: float
+    max_drawdown: float
+    beta_vs_nifty50: float | None
+    benchmark_data_source: str
+    series: list[AnalysisPoint]
+    disclaimer: str = (
+        "Historical analysis only. Not a prediction, recommendation, or guarantee of future performance."
+    )

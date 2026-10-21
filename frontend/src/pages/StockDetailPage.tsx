@@ -8,15 +8,18 @@ import { StatCard } from '../components/StatCard';
 import { ErrorBlock, LoadingBlock, EmptyBlock } from '../components/States';
 import { ConfidenceBadge, DataSourceBadge, DirectionBadge, SentimentBadge } from '../components/Badge';
 import { PriceHistoryChart } from '../charts/PriceHistoryChart';
+import { RsiChart } from '../charts/RsiChart';
+import { MacdChart } from '../charts/MacdChart';
 import { formatCurrency, formatNumber, formatProbabilityPct, formatSignedPct, formatVolume, timeAgo } from '../utils/format';
 
-type Tab = 'overview' | 'outlook' | 'news';
+type Tab = 'overview' | 'analysis' | 'outlook' | 'news';
 
 export default function StockDetailPage() {
   const { symbol = '' } = useParams();
   const [tab, setTab] = useState<Tab>('overview');
 
   const detail = useAsync(() => stockService.getStockDetail(symbol), [symbol]);
+  const analysis = useAsync(() => stockService.getAnalysis(symbol), [symbol]);
   const prediction = useAsync(() => stockService.getPrediction(symbol), [symbol]);
   const news = useAsync(() => stockService.getNews(symbol, 10), [symbol]);
   const sentiment = useAsync(() => stockService.getSentiment(symbol), [symbol]);
@@ -39,7 +42,7 @@ export default function StockDetailPage() {
           <QuoteRow quote={detail.data.quote} />
 
           <div className="flex gap-2 border-b border-base-border">
-            {(['overview', 'outlook', 'news'] as Tab[]).map((t) => (
+            {(['overview', 'analysis', 'outlook', 'news'] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -54,6 +57,14 @@ export default function StockDetailPage() {
           </div>
 
           {tab === 'overview' && <OverviewTab detail={detail.data} />}
+          {tab === 'analysis' && (
+            <AnalysisTab
+              analysis={analysis.data}
+              loading={analysis.loading}
+              error={analysis.error}
+              onRetry={analysis.reload}
+            />
+          )}
           {tab === 'outlook' && (
             <OutlookTab
               prediction={prediction.data}
@@ -133,6 +144,80 @@ function IndicatorStat({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-sm font-bold text-slate-100">{value}</p>
     </div>
   );
+}
+
+function AnalysisTab({
+  analysis,
+  loading,
+  error,
+  onRetry,
+}: {
+  analysis: import('../types/api').StockAnalysis | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  if (loading) return <LoadingBlock />;
+  if (error) return <ErrorBlock message={error} onRetry={onRetry} />;
+  if (!analysis) return null;
+
+  const { returns, series } = analysis;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <StatCard label="Daily Return" value={formatSignedPct((returns.daily_return ?? 0) * 100)} tone={toneFor(returns.daily_return)} />
+        <StatCard label="30d Return" value={formatSignedPct((returns.cumulative_return_30d ?? 0) * 100)} tone={toneFor(returns.cumulative_return_30d)} />
+        <StatCard label="90d Return" value={formatSignedPct((returns.cumulative_return_90d ?? 0) * 100)} tone={toneFor(returns.cumulative_return_90d)} />
+        <StatCard label="1y Return" value={formatSignedPct((returns.cumulative_return_1y ?? 0) * 100)} tone={toneFor(returns.cumulative_return_1y)} />
+        <StatCard label="Volatility (Ann.)" value={formatProbabilityPct(analysis.volatility_annualized)} />
+        <StatCard label="Max Drawdown" value={formatSignedPct(analysis.max_drawdown * 100)} tone="negative" />
+      </div>
+
+      <Card
+        title="Beta vs. NIFTY 50"
+        subtitle="Covariance(stock, benchmark) / Variance(benchmark) over the selected window"
+      >
+        {analysis.beta_vs_nifty50 === null ? (
+          <p className="text-sm text-slate-400">
+            Not enough overlapping history with the benchmark to compute a reliable beta.
+          </p>
+        ) : (
+          <div className="flex items-baseline gap-3">
+            <span className="text-3xl font-bold text-slate-100">{formatNumber(analysis.beta_vs_nifty50, 2)}</span>
+            <span className="text-xs text-slate-500">
+              {analysis.beta_vs_nifty50 > 1
+                ? 'More volatile than the benchmark historically'
+                : analysis.beta_vs_nifty50 < 0
+                  ? 'Historically moved opposite to the benchmark'
+                  : 'Less volatile than the benchmark historically'}
+            </span>
+          </div>
+        )}
+        <p className="mt-3 text-[11px] text-slate-500">
+          Beta estimates on short windows are noisy — prefer at least a year of history before
+          treating this number as stable. See docs/methodology.md.
+        </p>
+      </Card>
+
+      <Card title="RSI (14)" subtitle="Relative Strength Index — above 70 often read as overbought, below 30 as oversold">
+        {series.length > 0 ? <RsiChart points={series} /> : <EmptyBlock title="No data" message="Not enough history to chart RSI." />}
+      </Card>
+
+      <Card title="MACD" subtitle="12/26 EMA difference, 9-period signal line, and histogram">
+        {series.length > 0 ? <MacdChart points={series} /> : <EmptyBlock title="No data" message="Not enough history to chart MACD." />}
+      </Card>
+
+      <div className="rounded-lg border border-base-border bg-base-surface2 px-3 py-2.5 text-xs italic text-slate-500">
+        {analysis.disclaimer}
+      </div>
+    </div>
+  );
+}
+
+function toneFor(value: number | null | undefined): 'positive' | 'negative' | undefined {
+  if (value === null || value === undefined) return undefined;
+  return value >= 0 ? 'positive' : 'negative';
 }
 
 function OutlookTab({

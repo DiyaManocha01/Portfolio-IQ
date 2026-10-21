@@ -100,6 +100,41 @@ def sharpe_ratio(returns: pd.Series, risk_free_rate: float = 0.06) -> float:
     return float((excess.mean() / excess.std()) * np.sqrt(252))
 
 
+def macd(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
+    """Standard MACD: fast EMA - slow EMA, a signal EMA of that, and the histogram.
+
+    Returns a DataFrame with columns macd_line, signal_line, histogram,
+    indexed the same as `close`.
+    """
+    fast_ema = ema(close, fast)
+    slow_ema = ema(close, slow)
+    macd_line = fast_ema - slow_ema
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    histogram = macd_line - signal_line
+    return pd.DataFrame(
+        {"macd_line": macd_line, "signal_line": signal_line, "histogram": histogram}
+    )
+
+
+def beta(stock_returns: pd.Series, benchmark_returns: pd.Series) -> float | None:
+    """Beta of a stock vs. a benchmark: Cov(stock, benchmark) / Var(benchmark).
+
+    Returns None (not 0 or 1) when there isn't enough overlapping history to
+    compute a meaningful estimate -- callers must not treat a missing beta
+    as "beta of zero", that would misrepresent an unknown as a specific claim.
+    """
+    aligned = pd.concat([stock_returns, benchmark_returns], axis=1, join="inner").dropna()
+    if len(aligned) < 20:  # arbitrary but documented floor -- below this, a
+        return None          # beta estimate is too noisy to report as a number
+    stock_r = aligned.iloc[:, 0]
+    bench_r = aligned.iloc[:, 1]
+    bench_var = bench_r.var()
+    if bench_var == 0:
+        return None
+    covariance = stock_r.cov(bench_r)
+    return float(covariance / bench_var)
+
+
 def compute_indicators(df: pd.DataFrame) -> dict:
     """Compute the full indicator set used on the stock detail page."""
     close = df["close"]

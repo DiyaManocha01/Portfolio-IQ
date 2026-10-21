@@ -237,3 +237,33 @@ export interface PortfolioFit {
 export interface ApiError {
   detail: string;
 }
+
+export interface AnalysisPoint {
+  date: string;
+  close: number;
+  sma_20: number | null;
+  ema_20: number | null;
+  rsi_14: number | null;
+  macd_line: number | null;
+  macd_signal: number | null;
+  macd_histogram: number | null;
+}
+
+export interface ReturnsSummary {
+  daily_return: number | null;
+  cumulative_return_30d: number | null;
+  cumulative_return_90d: number | null;
+  cumulative_return_1y: number | null;
+}
+
+export interface StockAnalysis {
+  symbol: string;
+  data_source: 'DEV_SAMPLE' | 'LIVE';
+  returns: ReturnsSummary;
+  volatility_annualized: number;
+  max_drawdown: number;
+  beta_vs_nifty50: number | null;
+  benchmark_data_source: 'DEV_SAMPLE' | 'LIVE';
+  series: AnalysisPoint[];
+  disclaimer: string;
+}

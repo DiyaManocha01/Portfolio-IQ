@@ -38,8 +38,17 @@ class CacheEntryMeta:
     validation_warnings: list[str]
 
 
+def _sanitize_filename(symbol: str) -> str:
+    # Index tickers like "^NSEI" carry a leading caret that's awkward (if
+    # not outright invalid) in a filename on some filesystems -- store them
+    # as "_NSEI.parquet" instead. The symbol value itself (used as the
+    # manifest key, cache lookups, etc.) is untouched; only the on-disk
+    # filename is sanitized.
+    return symbol.upper().replace("^", "_")
+
+
 def _symbol_path(symbol: str) -> Path:
-    return CACHE_DIR / f"{symbol.upper()}.parquet"
+    return CACHE_DIR / f"{_sanitize_filename(symbol)}.parquet"
 
 
 def has_cache(symbol: str) -> bool:

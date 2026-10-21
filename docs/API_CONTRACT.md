@@ -127,6 +127,26 @@ HINDUNILVR, BHARTIARTL, SBIN, WIPRO, MARUTI, SUNPHARMA (unheld -- these populate
 
 ### GET /stocks/{symbol}/history?days=200 -> `{ symbol, data_source, points: [OHLCV...] }`
 
+### GET /stocks/{symbol}/analysis?days=400 (Phase 5)
+Full time series (not just latest values) for charting -- returns,
+volatility, drawdown, SMA/EMA/RSI/MACD per day, plus beta vs. NIFTY 50.
+```json
+{
+  "symbol": "TCS", "data_source": "DEV_SAMPLE",
+  "returns": { "daily_return": 0.025, "cumulative_return_30d": -0.06, "cumulative_return_90d": 0.165, "cumulative_return_1y": 0.171 },
+  "volatility_annualized": 0.286, "max_drawdown": -0.126,
+  "beta_vs_nifty50": 0.85, "benchmark_data_source": "DEV_SAMPLE",
+  "series": [{ "date": "2026-10-21", "close": 3615.99, "sma_20": 3431.28, "ema_20": 3445.89,
+               "rsi_14": 52.1, "macd_line": -2.17, "macd_signal": -20.44, "macd_histogram": 18.28 }],
+  "disclaimer": "Historical analysis only. Not a prediction, recommendation, or guarantee of future performance."
+}
+```
+`beta_vs_nifty50` is `null` (never 0 or 1) when fewer than 20 overlapping
+trading days exist with the benchmark -- see docs/methodology.md for why a
+missing beta must never be presented as a specific value. Beta on short
+windows (<~250 days) is empirically noisy; prefer the default 400-day
+window when beta matters for a decision.
+
 ### GET /stocks/{symbol}/prediction
 ```json
 {

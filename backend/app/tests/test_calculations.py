@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from app.models.portfolio import Holding
 from app.models.stock import Stock
@@ -68,3 +69,39 @@ def test_max_drawdown_is_non_positive():
     close = pd.Series([100, 110, 90, 95, 80, 120])
     dd = analytics.max_drawdown(close)
     assert dd <= 0
+
+
+def test_macd_returns_expected_columns():
+    close = pd.Series([100 + i + (i % 5) for i in range(60)], dtype=float)
+    result = analytics.macd(close)
+    assert list(result.columns) == ["macd_line", "signal_line", "histogram"]
+    assert len(result) == len(close)
+    # histogram is always macd_line - signal_line by construction
+    diff = (result["macd_line"] - result["signal_line"] - result["histogram"]).abs()
+    assert (diff < 1e-9).all()
+
+
+def test_beta_of_series_with_itself_is_one():
+    rng_series = pd.Series([0.01, -0.02, 0.015, 0.03, -0.01, 0.02, -0.015, 0.005, 0.01, -0.02] * 3)
+    result = analytics.beta(rng_series, rng_series)
+    assert result == pytest.approx(1.0, abs=1e-9)
+
+
+def test_beta_returns_none_with_insufficient_overlap():
+    short_a = pd.Series([0.01, 0.02, -0.01])
+    short_b = pd.Series([0.01, 0.02, -0.01])
+    assert analytics.beta(short_a, short_b) is None
+
+
+def test_beta_returns_none_for_zero_variance_benchmark():
+    stock = pd.Series([0.01, -0.02, 0.015, 0.03, -0.01] * 5)
+    flat_benchmark = pd.Series([0.0] * 25)
+    assert analytics.beta(stock, flat_benchmark) is None
+
+
+def test_beta_known_linear_relationship():
+    # benchmark moves, stock = 2x benchmark exactly -> beta should be ~2.0
+    benchmark = pd.Series([0.01, -0.02, 0.015, 0.03, -0.01, 0.02, -0.015, 0.005] * 4)
+    stock = benchmark * 2.0
+    result = analytics.beta(stock, benchmark)
+    assert result == pytest.approx(2.0, abs=1e-9)

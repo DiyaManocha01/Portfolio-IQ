@@ -97,3 +97,16 @@ class MarketDataService:
     @property
     def data_source_label(self) -> str:
         return self.provider.source.value
+
+    def get_benchmark_history(self, days: int = 365) -> list:
+        """Returns raw OHLCVBar history for the NIFTY 50 benchmark (Phase 5, beta calc).
+
+        Deliberately NOT persisted through the Stock/MarketData DB tables --
+        the benchmark isn't a holding or a discoverable stock, it's only
+        used as an input to beta calculations, computed on demand. Goes
+        straight to the provider (which is cache-first for
+        LiveYFinanceProvider, same as every other symbol).
+        """
+        from app.services.market_data.nifty100 import BENCHMARK_SYMBOL
+
+        return self.provider.get_history(BENCHMARK_SYMBOL, days=days)
