@@ -338,6 +338,31 @@ UI, the methodology doc, or a future paper, it's listed here.
   spillover effect to other sectors, even though real sector shocks
   usually do have some spillover.
 
+## Counterfactual Explanations for Fit Ranking (Phase 16)
+
+- **The counterfactual is ceteris-paribus and single-term, never a joint
+  minimal-change search.** `what_would_improve_rank()` answers "if ONLY
+  this term changed, how much would it need to move" for each of the 5
+  terms independently — it does NOT search for the smallest combined
+  change across multiple terms that would close the gap (a genuinely
+  different, harder optimization problem this project does not attempt).
+  A required single-term change being numerically small must not be read
+  as "this is the easiest or most realistic way to improve the ranking."
+- **Comparisons are only valid within the same z-scoring population.**
+  `/portfolio-fit/{symbol}/compare/{other_symbol}` and `/counterfactual`
+  both z-score against the full stock universe (matching the single-stock
+  `/portfolio-fit/{symbol}` endpoint's population) — comparing a logit
+  from this endpoint against a logit computed via `/discover`'s
+  batch-scoped z-scoring (Section 7.3) would not be valid, and this
+  service never mixes the two.
+- **No causal claim is made or implied.** A term's raw value moving by
+  the computed `required_raw_delta` is a mathematical statement about
+  this specific linear(-in-z-space) formula, not a claim that the
+  underlying real-world quantity (e.g. sentiment, ML outlook) is easy or
+  even possible to move by that amount, or that doing so would have no
+  side effects on the other terms in reality (the ceteris-paribus
+  assumption is a modeling simplification, not a fact about markets).
+
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).

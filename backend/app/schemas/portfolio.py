@@ -170,6 +170,43 @@ class PortfolioFitOut(BaseModel):
     weights_used: dict[str, float]
 
 
+class FitTermDelta(BaseModel):
+    term: str
+    name: str
+    contribution_a: float
+    contribution_b: float
+    delta: float
+
+
+class FitRankingGap(BaseModel):
+    symbol_a: str
+    symbol_b: str
+    fit_score_a: float
+    fit_score_b: float
+    logit_gap: float
+    term_deltas: list[FitTermDelta]
+    preset: str
+    note: str
+
+
+class FitTermScenario(BaseModel):
+    term: str
+    name: str
+    current_raw_value: float
+    required_z_delta: float
+    required_raw_delta: float | None
+    target_raw_value: float | None
+
+
+class FitCounterfactual(BaseModel):
+    symbol: str
+    fit_score: float
+    target: str
+    already_meets_target: bool
+    term_scenarios: list[FitTermScenario]
+    note: str
+
+
 class WhatIfChange(BaseModel):
     symbol: str = Field(min_length=1, max_length=32)
     new_quantity: float = Field(ge=0)

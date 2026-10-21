@@ -279,6 +279,10 @@ class PortfolioFitService:
                 "_stock_vol": stock_vol,
                 "_avg_correlation": avg_corr,
                 "_prediction_probability": raw["outlook"] + 0.5,
+                "_logit": logit,
+                "_raw": dict(raw),
+                "_z_scores": dict(z_scores),
+                "_term_std": dict(term_std),
             }
         return results
 

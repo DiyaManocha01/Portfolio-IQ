@@ -374,6 +374,42 @@ universe vs. the candidate batch) -- see Section 7.3.
 
 ---
 
+### GET /portfolio-fit/{symbol}/compare/{other_symbol}?preset=... (Phase 16)
+```json
+{
+  "symbol_a": "SUNPHARMA", "symbol_b": "WIPRO", "fit_score_a": 72.0, "fit_score_b": 53.6,
+  "logit_gap": 0.8015,
+  "term_deltas": [
+    { "term": "diversification_delta", "name": "Diversification Impact", "contribution_a": 0.6404, "contribution_b": -0.191, "delta": 0.8315 },
+    { "term": "risk_delta", "name": "Risk Impact", "contribution_a": 0.4993, "contribution_b": 0.1208, "delta": 0.3784 }
+  ],
+  "preset": "balanced",
+  "note": "term_deltas sum exactly to logit_gap (an algebraic identity, not an approximation) -- sorted by absolute contribution to the gap, largest first."
+}
+```
+Both stocks are z-scored against the SAME population (the full stock
+universe) so the comparison is valid -- do not compare a logit from this
+endpoint against one from `/discover` (different, batch-scoped
+population; see Section 7.3).
+
+### GET /portfolio-fit/{symbol}/counterfactual?target_symbol=...|target_score=...&preset=... (Phase 16)
+Exactly one of `target_symbol` or `target_score` (strictly between 0 and
+100) is required; both or neither returns 400.
+```json
+{
+  "symbol": "WIPRO", "fit_score": 53.6, "target": "SUNPHARMA", "already_meets_target": false,
+  "term_scenarios": [
+    { "term": "outlook", "name": "ML Outlook", "current_raw_value": 0.0245,
+      "required_z_delta": 3.206, "required_raw_delta": 0.0664, "target_raw_value": 0.0909 }
+  ],
+  "note": "Each scenario is CETERIS PARIBUS -- 'if ONLY this term changed, holding every other term fixed, this is how much it would need to move to close the gap.' This is NOT a joint, minimal-change search across all terms simultaneously, and a required change being numerically small does not mean it is realistically easy to achieve -- see docs/limitations.md."
+}
+```
+`already_meets_target: true` means the stock already meets/exceeds the
+target and `term_scenarios` is empty (nothing to compute). Each scenario
+is independent of the others -- never sum or combine `required_raw_delta`
+values across terms as if they were a joint plan.
+
 ## Error shape
 FastAPI default: `{ "detail": "message" }` with 401/404/400/503 status codes as appropriate. 503 specifically means the ML model hasn't been trained yet (won't happen against the seeded demo DB).
 

@@ -997,6 +997,71 @@ consequence of the beta-scaling mechanism, not a separately-tuned number.
 
 ---
 
-*(Sections 13+ — counterfactual search, SHAP explanations, and the
-prediction ledger design — are added as each corresponding phase is
-implemented, not written in advance.)*
+## 13. Counterfactual Explanations for Fit Ranking (Phase 16)
+
+Implemented in `backend/app/portfolio/fit_counterfactual_service.py`. New
+endpoints `GET /portfolio-fit/{symbol}/compare/{other_symbol}` and
+`GET /portfolio-fit/{symbol}/counterfactual`. Net-new (no ADR).
+
+### 13.1 Why this is tractable
+
+Phase 10's Fit score is `sigmoid(logit)` where
+`logit = sum(sign[term] * weight[term] * z[term])` is **additive** across
+the five terms. That additivity is what makes two explanation types
+directly computable without approximation:
+
+### 13.2 "Why did A rank above B?" — an exact decomposition
+
+```
+logit_A - logit_B = sum_term (contribution_A[term] - contribution_B[term])
+```
+
+This is an algebraic identity, not an approximation — verified by test
+(`test_term_deltas_sum_exactly_to_logit_gap`). Both stocks are evaluated
+against the SAME z-scoring population (the full stock universe, via
+`PortfolioFitService.compute_fit()` for each), so the comparison is valid
+— comparing logits computed against two *different* populations (e.g.
+one from `/discover`'s batch, one from this full-universe comparison)
+would NOT be valid; see Section 7.3's documented population-dependence.
+
+### 13.3 "What would need to change to rank higher?" — ceteris-paribus, single-term
+
+For a target (another stock's logit, or a target 0-100 Fit score via the
+inverse sigmoid `logit = ln(p/(1-p))`), the gap `target_logit -
+current_logit` is distributed across each term IN ISOLATION:
+
+```
+required_z_delta[term] = gap / (sign[term] * weight[term])
+required_raw_delta[term] = required_z_delta[term] * population_std[term]
+```
+
+**This is deliberately NOT a joint, minimal-change search across all five
+terms simultaneously** — that is a genuinely different (and harder,
+unsolved here) constrained-optimization problem. Every result is labeled
+"if ONLY this term changed, holding every other term fixed" — both in the
+API response's `note` field and here. A small `required_z_delta` does NOT
+mean that term is realistically the easiest lever to move in practice;
+the model has no concept of which of its own inputs are actually
+achievable to change.
+
+### 13.4 Measured example (seeded demo portfolio, DEV_SAMPLE data)
+
+`GET /portfolio-fit/SUNPHARMA/compare/WIPRO` (balanced preset):
+
+| Term | Contribution (SUNPHARMA) | Contribution (WIPRO) | Delta |
+|---|---|---|---|
+| Diversification Impact | +0.640 | -0.191 | **+0.832** |
+| Risk Impact | +0.499 | +0.121 | +0.378 |
+| ML Outlook | -0.277 | +0.071 | -0.348 |
+| News Sentiment | -0.079 | -0.019 | -0.060 |
+| Concentration Impact | +0.162 | +0.162 | 0.000 |
+
+Sum of deltas = 0.8015 = `logit_gap` exactly. SUNPHARMA's fit advantage
+over WIPRO (72.0 vs. 53.6) is driven almost entirely by diversification
+and risk impact, partially offset by a worse ML outlook term.
+
+---
+
+*(Sections 14+ — SHAP explanations and the prediction ledger design — are
+added as each corresponding phase is implemented, not written in
+advance.)*
