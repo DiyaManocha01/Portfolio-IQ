@@ -211,6 +211,38 @@ UI, the methodology doc, or a future paper, it's listed here.
   simplification the old service used, still not accounting for how
   correlated the *existing* holdings are with each other.
 
+## What-If Simulator (Phase 11)
+
+- **Indian transaction cost rates are illustrative, not verified against
+  any specific broker or regulatory source for this project.** STT,
+  stamp duty, exchange charges, SEBI fee, and GST rates are commonly-cited
+  approximate figures for NSE equity delivery trades, hardcoded as
+  constants in `whatif_service.py`. Real brokers' actual charges vary, and
+  regulatory rates can change; these numbers must never be presented as
+  accurate cost guidance, only as an illustrative order-of-magnitude
+  estimate. Brokerage defaults to 0% (matching common modern Indian
+  discount-broker practice) but is not verified against any particular
+  broker either.
+- **No market-impact or liquidity modeling.** The simulator assumes any
+  simulated trade executes instantly at the latest quoted close price,
+  regardless of size -- a large hypothetical trade in a low-liquidity
+  stock would, in reality, move the execution price; this is not modeled.
+- **Before/after metrics use a different volatility estimation method
+  than Phase 10's Fit Engine** (realized-weighted-return-series here vs.
+  covariance-quadratic-form in `hypothetical.py`) — see
+  `docs/methodology.md` Section 8.2 for why these are two legitimate,
+  separately-scoped tools rather than one shared implementation, and why
+  that is a deliberate design choice, not an inconsistency to be
+  reconciled.
+- **Same lookback-window and small-holdings-count instability as Phase 8**
+  applies here too — the before/after comparison is only as stable as the
+  underlying 180-day return history.
+- **Tax implications (capital gains) of a simulated sale are not
+  modeled at all** — only transaction-level costs (STT, stamp duty, etc.),
+  not income tax on any realized gain/loss. A real sale's tax impact can
+  be far larger than the modeled transaction costs and is a materially
+  different calculation this project does not attempt.
+
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).

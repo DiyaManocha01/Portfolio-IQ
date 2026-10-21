@@ -9,6 +9,7 @@ from app.portfolio.health_service import PortfolioHealthService
 from app.portfolio.optimization_service import VALID_METHODS, PortfolioOptimizationService
 from app.portfolio.risk_service import PortfolioRiskService
 from app.portfolio.weakness_service import PortfolioWeaknessService
+from app.portfolio.whatif_service import WhatIfService
 from app.schemas.portfolio import (
     AllocationSlice,
     CorrelationPair,
@@ -26,6 +27,11 @@ from app.schemas.portfolio import (
     ScoreComponent,
     WeaknessOut,
     PerformancePoint,
+    TradeCost,
+    WhatIfMetrics,
+    WhatIfRequest,
+    WhatIfResult,
+    WhatIfTrade,
 )
 from app.services import portfolio_calc
 from app.services.market_data.service import MarketDataService
@@ -230,3 +236,40 @@ def weaknesses(
 ):
     w = PortfolioWeaknessService(db).detect(portfolio)
     return PortfolioWeaknesses(weaknesses=[WeaknessOut(**item) for item in w])
+
+
+@router.post("/what-if", response_model=WhatIfResult)
+def what_if(
+    request: WhatIfRequest,
+    portfolio: Portfolio = Depends(get_current_portfolio),
+    db: Session = Depends(get_db),
+):
+    try:
+        r = WhatIfService(db).simulate(
+            portfolio,
+            changes=[c.model_dump() for c in request.changes],
+            include_costs=request.include_costs,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return WhatIfResult(
+        before=WhatIfMetrics(**r["before"]),
+        after=WhatIfMetrics(**r["after"]),
+        deltas=r["deltas"],
+        trades=[
+            WhatIfTrade(
+                symbol=t["symbol"],
+                quantity_delta=t["quantity_delta"],
+                trade_value=t["trade_value"],
+                action=t["action"],
+                estimated_cost=TradeCost(**t["estimated_cost"]) if t["estimated_cost"] else None,
+            )
+            for t in r["trades"]
+        ],
+        total_estimated_cost=r["total_estimated_cost"],
+        risk_free_rate_assumed=r["risk_free_rate_assumed"],
+        lookback_days=r["lookback_days"],
+        data_source=r["data_source"],
+        disclaimer=r["disclaimer"],
+    )

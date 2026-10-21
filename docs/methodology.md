@@ -587,6 +587,90 @@ the documented population-dependence from 7.3, not an inconsistency.
 
 ---
 
-*(Sections 8+ — stress-test assumptions, counterfactual search, and the
+## 8. What-If Simulator (Phase 11)
+
+Implemented in `backend/app/portfolio/whatif_service.py`. Net-new (no
+prior behavior superseded, so no ADR — see CLAUDE.md rule 9, which
+requires an ADR only when superseding an existing decision).
+
+### 8.1 What this is
+
+Lets the user hypothesize arbitrary changes to their holdings -- buy more
+of something, sell some or all of a position, add a stock they don't yet
+hold -- and see the before/after impact on portfolio risk, with an
+optional transaction-cost estimate. **Never writes to the database**; the
+real portfolio is read, never mutated, verified by a dedicated test that
+diffs `/portfolio` before and after calling the endpoint.
+
+### 8.2 Why this is a separate module from Phase 10's `hypothetical.py`
+
+Phase 10 needed one narrow thing: "what if we added this one candidate at
+a fixed 10% weight" (a covariance-matrix-implied volatility, no VaR). This
+phase needs two things that module doesn't provide: arbitrary
+multi-position rebalancing (not just one addition at a fixed weight), and
+Value-at-Risk/CVaR, which fundamentally requires a realized return series
+(an empirical quantile) rather than just a covariance matrix. Rather than
+overload one module with two shapes of "hypothetical", `whatif_service.py`
+is self-contained, computing `before` and `after` with the EXACT same
+method (the realized-weighted-return-series approach, matching
+`PortfolioRiskService.compute()`'s own definition of annualized
+volatility) -- the property that actually matters for a trustworthy delta
+is internal consistency, not bit-for-bit reuse of Phase 10's code.
+
+### 8.3 Request / computation
+
+- Input: a list of `{symbol, new_quantity}` -- an ABSOLUTE target
+  quantity, not a delta. `new_quantity: 0` fully exits a position; a
+  symbol not currently held with `new_quantity > 0` is a hypothetical new
+  buy.
+- Before/after portfolio value weights are built from real current
+  holdings with these overrides applied, then both are run through the
+  same `_portfolio_metrics()`: annualized volatility, Sharpe, historical
+  VaR/CVaR (95%/99%, Phase 8's `historical_var_cvar`), diversification
+  ratio, and holdings HHI (Phase 8's `diversification_ratio`/`hhi`).
+- `deltas` = after - before for every metric.
+
+### 8.4 Indian transaction cost estimate (optional, `include_costs=true` by default)
+
+Per changed position, modeled on commonly-cited NSE equity delivery-trade
+charges:
+
+| Charge | Rate | Side |
+|---|---|---|
+| Brokerage | 0% (configurable) | both |
+| STT (Securities Transaction Tax) | 0.1% | both |
+| Stamp duty | 0.015% | buy only |
+| Exchange transaction charges | ~0.003% | both |
+| SEBI turnover fee | ~0.0001% | both |
+| GST | 18% of (brokerage + exchange charges) | both |
+
+**These are illustrative, commonly-cited approximate rates, NOT sourced
+from any specific broker's live rate card or a regulatory filing checked
+for this project.** Brokerage defaults to 0%, matching the now-common
+Indian discount-broker convention of zero brokerage on equity delivery
+trades, but is a parameter, not a verified figure. See
+`docs/limitations.md` -- this must never be read as real cost guidance.
+
+### 8.5 Measured example (seeded demo portfolio, DEV_SAMPLE data)
+
+Swapping the entire TCS position for 20 shares of SUNPHARMA (reproducible
+via `POST /portfolio/what-if` with
+`{"changes": [{"symbol": "TCS", "new_quantity": 0}, {"symbol": "SUNPHARMA", "new_quantity": 20}]}`):
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| Annualized volatility | 0.1975 | ~0.186 | -0.012 |
+| Diversification ratio | 1.412 | ~1.44 | +0.02-0.05 |
+| HHI (holdings) | 0.1464 | ~0.13 | -0.02 |
+
+Directionally consistent with Phase 10's finding that SUNPHARMA (a new
+sector for this portfolio) improves diversification -- a useful
+cross-check between the two phases' independently-implemented machinery,
+though exact figures vary slightly between runs depending on which
+holding is swapped and current prices.
+
+---
+
+*(Sections 9+ — stress-test assumptions, counterfactual search, and the
 prediction ledger design — are added as each corresponding phase is
 implemented, not written in advance.)*

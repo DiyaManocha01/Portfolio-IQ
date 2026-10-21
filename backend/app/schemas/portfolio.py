@@ -154,6 +154,57 @@ class PortfolioFitOut(BaseModel):
     weights_used: dict[str, float]
 
 
+class WhatIfChange(BaseModel):
+    symbol: str = Field(min_length=1, max_length=32)
+    new_quantity: float = Field(ge=0)
+
+
+class WhatIfRequest(BaseModel):
+    changes: list[WhatIfChange] = Field(min_length=1)
+    include_costs: bool = True
+
+
+class WhatIfMetrics(BaseModel):
+    annualized_volatility: float
+    sharpe_ratio: float
+    var_95: float
+    cvar_95: float
+    var_99: float
+    cvar_99: float
+    diversification_ratio: float
+    hhi_holdings: float
+
+
+class TradeCost(BaseModel):
+    brokerage: float
+    stt: float
+    stamp_duty: float
+    exchange_charges: float
+    sebi_fee: float
+    gst: float
+    total: float
+
+
+class WhatIfTrade(BaseModel):
+    symbol: str
+    quantity_delta: float
+    trade_value: float
+    action: str
+    estimated_cost: TradeCost | None
+
+
+class WhatIfResult(BaseModel):
+    before: WhatIfMetrics
+    after: WhatIfMetrics
+    deltas: dict[str, float]
+    trades: list[WhatIfTrade]
+    total_estimated_cost: float | None
+    risk_free_rate_assumed: float
+    lookback_days: int
+    data_source: str
+    disclaimer: str
+
+
 class DiscoverItem(BaseModel):
     symbol: str
     name: str

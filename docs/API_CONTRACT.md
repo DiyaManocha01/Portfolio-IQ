@@ -117,6 +117,35 @@ assumed risk-free rate, or for any method with fewer than 2 holdings.
 Unknown `method` values return 400. ALWAYS render the disclaimer and never
 phrase this as an instruction to rebalance.
 
+### POST /portfolio/what-if (Phase 11)
+Body: `{ "changes": [{ "symbol": "TCS", "new_quantity": 0 }, { "symbol": "SUNPHARMA", "new_quantity": 20 }], "include_costs": true }`
+`new_quantity` is an ABSOLUTE target (not a delta): `0` fully exits a
+position; a symbol not currently held with `new_quantity > 0` is a
+hypothetical new buy. `changes` must have at least 1 entry;
+`new_quantity` must be `>= 0`.
+```json
+{
+  "before": { "annualized_volatility": 0.1975, "sharpe_ratio": 0.42, "var_95": 0.0177, "cvar_95": 0.0211, "var_99": 0.0224, "cvar_99": 0.0257, "diversification_ratio": 1.412, "hhi_holdings": 0.1464 },
+  "after": { "annualized_volatility": 0.1868, "sharpe_ratio": 0.507, "var_95": 0.0171, "cvar_95": 0.0199, "var_99": 0.0202, "cvar_99": 0.0239, "diversification_ratio": 1.454, "hhi_holdings": 0.1291 },
+  "deltas": { "annualized_volatility": -0.0107, "sharpe_ratio": 0.087, "...": "..." },
+  "trades": [
+    { "symbol": "SUNPHARMA", "quantity_delta": 15.0, "trade_value": 27475.2, "action": "buy",
+      "estimated_cost": { "brokerage": 0.0, "stt": 27.48, "stamp_duty": 4.12, "exchange_charges": 0.82, "sebi_fee": 0.03, "gst": 0.15, "total": 32.6 } }
+  ],
+  "total_estimated_cost": 32.6, "risk_free_rate_assumed": 0.06, "lookback_days": 180, "data_source": "DEV_SAMPLE",
+  "disclaimer": "This is a hypothetical simulation of portfolio changes computed over historical data. It never modifies your actual holdings, is not a trade instruction, and transaction cost estimates are illustrative approximate rates, not quotes from any specific broker."
+}
+```
+**Never writes to the database** -- the real portfolio is read, never
+mutated (verified by a dedicated test). `estimated_cost` fields use
+illustrative, commonly-cited approximate NSE equity delivery-trade rates
+(STT/stamp duty/exchange charges/SEBI fee/GST), NOT sourced from any
+specific broker's live rate card -- see `docs/limitations.md`. Pass
+`include_costs: false` to omit cost estimation (`estimated_cost` and
+`total_estimated_cost` become `null`). No-op changes (requesting the
+current quantity) produce an empty `trades` list and all-zero `deltas`.
+ALWAYS render the disclaimer; never phrase this as a trade instruction.
+
 ### GET /portfolio/health
 ```json
 {
