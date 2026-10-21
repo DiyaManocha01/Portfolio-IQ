@@ -6,6 +6,7 @@ from app.database.session import get_db
 from app.models.portfolio import Holding, Portfolio
 from app.models.user import User
 from app.portfolio.health_service import PortfolioHealthService
+from app.portfolio.optimization_service import VALID_METHODS, PortfolioOptimizationService
 from app.portfolio.risk_service import PortfolioRiskService
 from app.portfolio.weakness_service import PortfolioWeaknessService
 from app.schemas.portfolio import (
@@ -13,8 +14,10 @@ from app.schemas.portfolio import (
     CorrelationPair,
     HoldingCreate,
     HoldingOut,
+    OptimizationAllocation,
     PortfolioAllocation,
     PortfolioHealth,
+    PortfolioOptimization,
     PortfolioPerformance,
     PortfolioRisk,
     PortfolioSummary,
@@ -178,6 +181,32 @@ def risk(
         covariance_method=r["covariance_method"],
         shrinkage_intensity=r["shrinkage_intensity"],
         data_source=r["data_source"],
+    )
+
+
+@router.get("/optimize", response_model=PortfolioOptimization)
+def optimize(
+    method: str = "min_variance",
+    portfolio: Portfolio = Depends(get_current_portfolio),
+    db: Session = Depends(get_db),
+):
+    if method not in VALID_METHODS:
+        raise HTTPException(
+            status_code=400, detail=f"Unknown optimization method: {method!r}. Must be one of {VALID_METHODS}."
+        )
+    r = PortfolioOptimizationService(db).compute(portfolio, method=method)
+    return PortfolioOptimization(
+        method=r["method"],
+        feasible=r["feasible"],
+        note=r["note"],
+        allocations=[OptimizationAllocation(**a) for a in r["allocations"]],
+        expected_annual_return=r["expected_annual_return"],
+        expected_annual_volatility=r["expected_annual_volatility"],
+        expected_sharpe_ratio=r["expected_sharpe_ratio"],
+        risk_free_rate_assumed=r["risk_free_rate_assumed"],
+        lookback_days=r["lookback_days"],
+        data_source=r["data_source"],
+        disclaimer=r["disclaimer"],
     )
 
 

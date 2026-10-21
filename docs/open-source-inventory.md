@@ -35,11 +35,26 @@ to `requirements.txt` / `package.json`.
 | **pyarrow** | **18.1.0** | **Apache-2.0** | **Phase 4** | **Parquet read/write for the local market-data cache** |
 | **matplotlib** | **3.11.2** | **PSF-based (BSD-style, matplotlib's own permissive license)** | **Phase 6** | **Calibration/reliability plot for the ML prediction pipeline** |
 | **feedparser** | **6.0.14** | **BSD-2-Clause** | **Phase 7** | **Parses Economic Times / Moneycontrol RSS feeds for real headline ingestion** |
+| **pyportfolioopt** | **1.6.0** | **MIT** | **Phase 9** | **Min-variance / max-Sharpe / HRP portfolio optimization suggestions** |
+| **cvxpy** (transitive, via pyportfolioopt) | 1.9.3 | Apache-2.0 | Phase 9 | Convex optimization backend for min-variance/max-Sharpe |
+| **clarabel** (transitive) | 0.11.1 | Apache-2.0 | Phase 9 | Conic solver used by cvxpy |
+| **osqp** (transitive) | 1.1.3 | Apache-2.0 | Phase 9 | QP solver used by cvxpy |
+| **qdldl** (transitive) | 0.1.9.post1 | Apache-2.0 | Phase 9 | Sparse linear algebra, osqp dependency |
+| **scs** (transitive) | 3.3.1 | MIT | Phase 9 | Conic solver used by cvxpy |
+| **highspy** (transitive) | 1.15.1 | MIT | Phase 9 | LP/MIP solver used by cvxpy |
+| **scikit-base** (transitive, via pyportfolioopt's HRP path) | 0.13.2 | BSD-3-Clause | Phase 9 | sktime-ecosystem base classes |
+| **sparsediffpy** (transitive) | 0.6.1 | Apache-2.0 | Phase 9 | Sparse differentiation, cvxpy dependency |
+| **jinja2** (transitive) | 3.1.6 | BSD-3-Clause | Phase 9 | Templating, osqp dependency |
+
+All Phase 9 transitive dependencies checked individually — all permissive
+(MIT/Apache-2.0/BSD-3-Clause), no copyleft. None are pinned in
+`requirements.txt` (only the direct `pyportfolioopt` dependency is);
+listed here for the license record per rule 7, with versions as actually
+resolved by pip at install time in this environment.
 
 ### Not-yet-added, expected soon (noted here so the next phase isn't a surprise)
 
 - Phase 7 (FinBERT path): `transformers` + a torch backend — already referenced in code as an optional import, not yet in `requirements.txt` since it's unused in this network-restricted sandbox; will be added and recorded if/when a FinBERT evaluation is actually run (see `scripts/evaluate_finbert.py`, written to be run locally)
-- Phase 9: `PyPortfolioOpt` (MIT) — optimization
 - Phase 17: `shap` (MIT) — SHAP explanations
 
 ## Frontend (JavaScript/TypeScript)

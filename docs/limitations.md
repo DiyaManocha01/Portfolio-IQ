@@ -140,6 +140,38 @@ UI, the methodology doc, or a future paper, it's listed here.
   estimated from a larger universe or longer window, which is exactly the
   problem Ledoit-Wolf shrinkage mitigates but does not eliminate.
 
+## Portfolio Optimization (Phase 9)
+
+- **Mean-variance optimization is highly sensitive to the expected-return
+  estimate.** `mean_historical_return` is just each stock's own past
+  compound growth rate over the lookback window — a famously noisy
+  estimator of a genuinely forward-looking "expected return." This is why
+  `max_sharpe` on the seeded demo portfolio concentrates 84% of suggested
+  weight into a single stock: mean-variance optimization is known to
+  produce extreme, concentrated allocations when fed noisy return
+  estimates, and this project does not apply any of the standard
+  mitigations (Black-Litterman views, return shrinkage, max-position
+  constraints beyond the long-only bound) yet. The suggestion is honestly
+  computed, not honestly *advisable* without those safeguards — the
+  disclaimer on every response says so.
+- **`risk_parity` is Hierarchical Risk Parity (HRP), not naive/equal-risk-
+  contribution risk parity.** The two are different algorithms that can
+  produce different weights; see `docs/methodology.md` Section 6.2. Using
+  the term "risk parity" without qualification elsewhere in casual
+  conversation about this feature would be imprecise.
+- **`max_sharpe` can be infeasible** (raises, caught and surfaced as
+  `feasible: false`) when no held stock's historical expected return
+  exceeds the 6% risk-free rate assumption — expected on synthetic data
+  with near-zero or negative drift, reported rather than papered over.
+- **No position-size, sector, or turnover constraints** beyond long-only
+  are applied — a suggested reallocation could imply selling an entire
+  position or concentrating heavily in one name, with no cost/tax/turnover
+  penalty modeled (that's deferred to Phase 11's What-If Simulator, which
+  will optionally model Indian transaction costs).
+- **Same lookback-window and small-holdings-count instability as Phase 8**
+  — the covariance matrix feeding the optimizer has the same estimation
+  noise discussed there, mitigated by shrinkage but not eliminated.
+
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).

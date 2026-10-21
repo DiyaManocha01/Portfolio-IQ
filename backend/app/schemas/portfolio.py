@@ -91,6 +91,27 @@ class PortfolioRisk(BaseModel):
     data_source: str
 
 
+class OptimizationAllocation(BaseModel):
+    symbol: str
+    current_weight_pct: float
+    suggested_weight_pct: float
+    delta_pct: float
+
+
+class PortfolioOptimization(BaseModel):
+    method: str
+    feasible: bool
+    note: str | None
+    allocations: list[OptimizationAllocation]
+    expected_annual_return: float
+    expected_annual_volatility: float
+    expected_sharpe_ratio: float
+    risk_free_rate_assumed: float
+    lookback_days: int
+    data_source: str
+    disclaimer: str
+
+
 class ScoreComponent(BaseModel):
     name: str
     score: float

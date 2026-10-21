@@ -95,6 +95,28 @@ and `diversification_ratio` (falls back to `"sample"` with intensity `0.0`
 when there are fewer than 2 holdings or fewer return observations than
 holdings).
 
+### GET /portfolio/optimize?method=min_variance|max_sharpe|risk_parity (Phase 9)
+```json
+{
+  "method": "min_variance", "feasible": true, "note": null,
+  "allocations": [
+    { "symbol": "ITC", "current_weight_pct": 16.88, "suggested_weight_pct": 62.67, "delta_pct": 45.79 },
+    ...
+  ],
+  "expected_annual_return": 0.0281, "expected_annual_volatility": 0.1681, "expected_sharpe_ratio": -0.19,
+  "risk_free_rate_assumed": 0.06, "lookback_days": 180, "data_source": "DEV_SAMPLE",
+  "disclaimer": "This is a hypothetical target allocation from a portfolio-optimization model, computed over historical data. It is a simulation, not a trade instruction or a guarantee of future performance -- it never modifies your actual holdings."
+}
+```
+Never mutates real holdings -- purely computed, nothing is written to the
+DB. `method=risk_parity` uses Hierarchical Risk Parity (HRP), NOT naive
+equal-risk-contribution -- see `docs/methodology.md` Section 6.2.
+`feasible: false` (empty `allocations`, `note` explaining why) can happen
+for `max_sharpe` when no held stock's historical return exceeds the
+assumed risk-free rate, or for any method with fewer than 2 holdings.
+Unknown `method` values return 400. ALWAYS render the disclaimer and never
+phrase this as an instruction to rebalance.
+
 ### GET /portfolio/health
 ```json
 {

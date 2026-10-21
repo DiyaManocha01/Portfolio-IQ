@@ -403,7 +403,79 @@ risk. Must be re-measured once real cached NIFTY data populates holdings.
 
 ---
 
-*(Sections 6+ — optimization suggestions, the Fit Engine formula,
-stress-test assumptions, counterfactual search, and the prediction ledger
-design — are added as each corresponding phase is implemented, not written
-in advance.)*
+## 6. Portfolio Optimization Suggestions (Phase 9)
+
+Implemented in `backend/app/portfolio/optimization_service.py` using
+PyPortfolioOpt (MIT license — `docs/open-source-inventory.md`).
+
+### 6.1 What this is and isn't
+
+Given the current holdings, this computes a hypothetical *target*
+allocation under a chosen method and compares it to the current
+allocation. It never touches the real portfolio — no DB write, no trade —
+and the response always carries a disclaimer saying so. This is the
+optimization half of what Phase 11's What-If Simulator will build on; it
+answers "what would an optimizer suggest", not "what should you do."
+
+### 6.2 Three methods
+
+- **`min_variance`**: the minimum-volatility point on the efficient
+  frontier (`EfficientFrontier.min_volatility`).
+- **`max_sharpe`**: the maximum-Sharpe-ratio portfolio
+  (`EfficientFrontier.max_sharpe`), same 6% annual risk-free rate
+  assumption as `risk_service.py`'s Sharpe ratio. Raises (caught and
+  surfaced as `feasible: false` with the underlying message) when no held
+  stock's historical expected return exceeds the risk-free rate — a real
+  possibility on this project's synthetic data, not silently hidden.
+- **`risk_parity`**: **Hierarchical Risk Parity (HRP)**
+  (`pypfopt.HRPOpt`) — a clustering-based allocation method. This is
+  explicitly *not* the simpler "naive"/equal-risk-contribution risk parity
+  that the name might suggest to a reader unfamiliar with the distinction;
+  PyPortfolioOpt doesn't implement the naive version, and this project
+  does not claim to compute something it didn't.
+
+### 6.3 Inputs
+
+- **Expected returns**: `pypfopt.expected_returns.mean_historical_return`
+  — each stock's own historical compound annual growth rate over the
+  lookback window (default 180 days, same as Phase 8's risk window). This
+  is historical, not the Phase 6 ML outlook — the two are deliberately
+  kept separate and neither silently substitutes for the other.
+- **Covariance**: PyPortfolioOpt's own Ledoit-Wolf shrinkage
+  (`risk_models.CovarianceShrinkage(...).ledoit_wolf()`), computed
+  independently of Phase 8's `shrunk_covariance()` since PyPortfolioOpt
+  needs its own internal representation — same methodology, separate
+  computation.
+- **Constraints**: long-only, no leverage (`weight_bounds=(0, 1)`). This
+  app holds real retail positions; a short/leverage suggestion would be a
+  meaningless hypothetical here.
+
+### 6.4 Output
+
+Per-holding `current_weight_pct` / `suggested_weight_pct` / `delta_pct`,
+plus the suggested portfolio's expected annual return/volatility/Sharpe
+under the stated risk-free-rate assumption.
+
+### 6.5 Measured example (seeded demo portfolio, DEV_SAMPLE data)
+
+Not hand-picked — reproducible via `python -m app.data.seed` then
+`GET /portfolio/optimize?method=...`:
+
+| Method | Expected return | Expected vol | Expected Sharpe | Largest suggested weight |
+|---|---|---|---|---|
+| `min_variance` | 2.8% | 16.8% | -0.19 | ITC: 62.7% (currently 16.9%) |
+| `max_sharpe` | 32.5% | 30.2% | 0.878 | ICICIBANK: 84.3% (currently 14.6%) |
+| `risk_parity` (HRP) | 11.6% | 18.4% | 0.305 | ITC: 29.5% (currently 16.9%) |
+
+The large suggested reallocations (e.g. 84% into a single stock for
+`max_sharpe`) are an honest artifact of optimizing historical
+expected-return estimates on a modest synthetic holding set, not a
+validated recommendation — see `docs/limitations.md`. These numbers are
+DEV_SAMPLE (synthetic); they demonstrate the methodology runs correctly,
+not anything about real-market optimal allocations.
+
+---
+
+*(Sections 7+ — the Fit Engine formula, stress-test assumptions,
+counterfactual search, and the prediction ledger design — are added as
+each corresponding phase is implemented, not written in advance.)*
