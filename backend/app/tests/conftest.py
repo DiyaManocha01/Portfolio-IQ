@@ -2,12 +2,25 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.data.seed import DEMO_EMAIL, DEMO_PASSWORD
+from app.database.session import SessionLocal
 from app.main import app
 
 
 @pytest.fixture(scope="session")
 def client():
     return TestClient(app)
+
+
+@pytest.fixture()
+def db_session():
+    """A real SQLAlchemy session against the seeded dev database -- used by
+    tests that exercise a service directly (e.g. the ML training pipeline)
+    rather than going through the HTTP API."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 @pytest.fixture(scope="session")

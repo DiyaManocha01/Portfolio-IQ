@@ -25,6 +25,12 @@ class Prediction(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     stock_id: Mapped[int] = mapped_column(ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False, index=True)
     model_name: Mapped[str] = mapped_column(String(100), nullable=False)  # e.g. "xgboost", "random_forest"
+    # Phase 6: content-hash fingerprint of the exact methodology (features,
+    # split params, calibration method, model type) that produced this
+    # prediction -- lets two predictions be compared only when they're
+    # actually from the same training methodology. Nullable: rows created
+    # before Phase 6 won't have one.
+    model_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     direction: Mapped[Direction] = mapped_column(Enum(Direction, name="prediction_direction"), nullable=False)
     probability: Mapped[float] = mapped_column(Float, nullable=False)  # model probability of positive class
     confidence: Mapped[Confidence] = mapped_column(Enum(Confidence, name="prediction_confidence"), nullable=False)

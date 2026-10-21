@@ -171,6 +171,7 @@ def get_stock_prediction(symbol: str, db: Session = Depends(get_db)):
         probability=prediction.probability,
         confidence=prediction.confidence.value,
         model_name=prediction.model_name,
+        model_version=prediction.model_version,
         prediction_date=prediction.prediction_date,
         important_features=json.loads(prediction.important_features),
     )

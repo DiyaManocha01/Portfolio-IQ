@@ -16,7 +16,7 @@ import joblib
 from sqlalchemy.orm import Session
 
 from app.ml.features import FEATURE_COLUMNS, build_feature_frame
-from app.ml.train import METADATA_PATH, MODEL_PATH, SCALER_PATH, load_metadata
+from app.ml.train import MODEL_PATH, load_metadata
 from app.models.prediction import Confidence, Direction, Prediction
 from app.models.stock import Stock
 from app.services import analytics
@@ -58,15 +58,19 @@ def _direction_from_probability(probability: float) -> Direction:
 class PredictionService:
     def __init__(self, db: Session):
         self.db = db
-        if not (MODEL_PATH.exists() and SCALER_PATH.exists()):
+        if not MODEL_PATH.exists():
             raise ModelNotTrainedError(
                 "No trained model found. Run the seed/training script first: "
                 "python -m app.data.seed"
             )
+        # As of Phase 6 this is a CalibratedClassifierCV wrapping either a
+        # Pipeline(scaler, clf) or a tree-based model directly -- it always
+        # takes raw (unscaled) feature rows; any scaling happens inside the
+        # pipeline, so there is no separate scaler artifact to load anymore.
         self.model = joblib.load(MODEL_PATH)
-        self.scaler = joblib.load(SCALER_PATH)
         self.metadata = load_metadata() or {}
         self.model_name = self.metadata.get("selected_model", "unknown")
+        self.model_version = self.metadata.get("model_version", "unknown")
 
     def predict_for_stock(self, stock: Stock) -> Prediction:
         from app.models.stock import MarketData
@@ -85,12 +89,7 @@ class PredictionService:
         latest = feat.dropna(subset=FEATURE_COLUMNS).iloc[[-1]]
         X = latest[FEATURE_COLUMNS]
 
-        if self.model_name == "logistic_regression":
-            X_input = self.scaler.transform(X)
-        else:
-            X_input = X
-
-        probability = float(self.model.predict_proba(X_input)[0, 1])
+        probability = float(self.model.predict_proba(X)[0, 1])
         direction = _direction_from_probability(probability)
         confidence = _confidence_from_probability(probability)
 
@@ -112,11 +111,13 @@ class PredictionService:
             existing.probability = probability
             existing.confidence = confidence
             existing.important_features = json.dumps(important_features)
+            existing.model_version = self.model_version
             prediction = existing
         else:
             prediction = Prediction(
                 stock_id=stock.id,
                 model_name=self.model_name,
+                model_version=self.model_version,
                 direction=direction,
                 probability=probability,
                 confidence=confidence,

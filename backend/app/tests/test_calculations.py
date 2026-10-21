@@ -105,3 +105,38 @@ def test_beta_known_linear_relationship():
     stock = benchmark * 2.0
     result = analytics.beta(stock, benchmark)
     assert result == pytest.approx(2.0, abs=1e-9)
+
+
+def test_purged_walk_forward_splits_no_leakage():
+    from app.ml.features import purged_walk_forward_splits
+
+    df = pd.DataFrame({"date": pd.date_range("2024-01-01", periods=120, freq="D"), "value": range(120)})
+    folds = list(purged_walk_forward_splits(df, n_splits=5, embargo=3))
+    assert len(folds) == 5
+    for train_df, test_df in folds:
+        assert len(train_df) > 0 and len(test_df) > 0
+        # every train row must come strictly before every test row
+        assert train_df["date"].max() < test_df["date"].min()
+        # the embargo gap itself must be respected: at least `embargo` days
+        # of calendar time between the end of train and the start of test
+        gap_days = (test_df["date"].min() - train_df["date"].max()).days
+        assert gap_days >= 3
+
+
+def test_purged_walk_forward_splits_folds_are_chronologically_increasing():
+    from app.ml.features import purged_walk_forward_splits
+
+    df = pd.DataFrame({"date": pd.date_range("2024-01-01", periods=100, freq="D"), "value": range(100)})
+    folds = list(purged_walk_forward_splits(df, n_splits=4, embargo=1))
+    test_starts = [test_df["date"].min() for _, test_df in folds]
+    assert test_starts == sorted(test_starts)
+    # last fold's test block should reach the end of the available data
+    assert folds[-1][1]["date"].max() == df["date"].max()
+
+
+def test_purged_walk_forward_splits_raises_with_too_little_data():
+    from app.ml.features import purged_walk_forward_splits
+
+    df = pd.DataFrame({"date": pd.date_range("2024-01-01", periods=3, freq="D"), "value": range(3)})
+    with pytest.raises(ValueError):
+        list(purged_walk_forward_splits(df, n_splits=10, embargo=1))

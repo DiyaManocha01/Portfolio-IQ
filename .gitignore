@@ -12,6 +12,7 @@ frontend/.env
 # ML artifacts
 backend/app/data/models/*.joblib
 backend/app/data/models/*.json
+backend/app/data/models/*.png
 
 # Market data cache (regeneratable locally via scripts/fetch_nifty100.py;
 # the small real-data test fixture under app/tests/fixtures/ IS committed)

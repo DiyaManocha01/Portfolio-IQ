@@ -33,10 +33,10 @@ to `requirements.txt` / `package.json`.
 | httpx | 0.28.1 | BSD-3-Clause | Phase 1 | Test client HTTP support |
 | **yfinance** | **0.2.51** | **Apache-2.0** | **Phase 4** | **Live/cached market data source** |
 | **pyarrow** | **18.1.0** | **Apache-2.0** | **Phase 4** | **Parquet read/write for the local market-data cache** |
+| **matplotlib** | **3.11.2** | **PSF-based (BSD-style, matplotlib's own permissive license)** | **Phase 6** | **Calibration/reliability plot for the ML prediction pipeline** |
 
 ### Not-yet-added, expected soon (noted here so the next phase isn't a surprise)
 
-- Phase 6: no new runtime dependency expected (scikit-learn already covers isotonic/Platt calibration via `CalibratedClassifierCV`)
 - Phase 7: `transformers` + a torch backend (FinBERT) — already referenced in code as an optional import, not yet in `requirements.txt` since it's unused in this network-restricted sandbox; will be added and recorded when Phase 7 actually exercises it
 - Phase 9: `PyPortfolioOpt` (MIT) — optimization
 - Phase 17: `shap` (MIT) — SHAP explanations

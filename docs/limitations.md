@@ -50,12 +50,22 @@ UI, the methodology doc, or a future paper, it's listed here.
   after running the seed script). This is expected and reported honestly:
   a synthetic random walk has very little real learnable signal by
   construction. This number must be re-measured once the model trains on
-  real cached NIFTY data (Phase 6) — the current figure says nothing about
-  real-world model quality and must never be quoted as if it does.
-- **No probability calibration yet.** Phase 6 will add isotonic/Platt
-  calibration; until then, the model's raw `predict_proba` output is used
-  directly, which is a known source of miscalibrated confidence in
-  gradient-boosted/ensemble classifiers.
+  real cached NIFTY data (Phase 4's cache, populated locally) — the current
+  figure says nothing about real-world model quality and must never be
+  quoted as if it does.
+- **`CalibratedClassifierCV`'s internal calibration folds are not
+  time-aware** (Phase 6). The outer purged walk-forward CV used for model
+  *selection* is correctly time-ordered and embargoed, but scikit-learn's
+  `CalibratedClassifierCV(cv=3)` used for the final probability
+  *calibration* step uses an ordinary (non-time-aware) internal k-fold.
+  This is a real simplification, not a silently-accepted gap — a fully
+  rigorous version would need a custom purged calibration split. See ADR
+  0003 and `docs/methodology.md` Section 3.5.
+- **Isotonic calibration was considered and rejected for now** (sigmoid/Platt
+  used instead) because per-fold training sample sizes (a few hundred rows
+  on synthetic data) are small enough that isotonic regression risks
+  overfitting the calibration curve itself. Revisit once training runs on
+  the full real NIFTY 100 cache, which will have far more data per fold.
 
 ## Infrastructure
 

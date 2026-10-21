@@ -100,9 +100,20 @@ def seed():
 
         print("Training ML direction-classifier (Logistic Regression / Random Forest / XGBoost)...")
         metadata = train_and_select_model(db)
-        print(f"  Selected model: {metadata['selected_model']}")
-        print(f"  Validation metrics: {metadata['candidates_val_metrics']}")
-        print(f"  Held-out test metrics: {metadata['test_metrics']}")
+        print(f"  Selected model: {metadata['selected_model']} (version {metadata['model_version']})")
+        for name, cv in metadata["cross_validation"]["per_candidate"].items():
+            print(f"    {name}: mean_val_auc={cv['mean_val_auc']:.3f} over {cv['n_folds']} folds")
+        final = metadata["final_holdout_test"]
+        print(
+            f"  Held-out test: auc_calibrated={final['test_auc_calibrated']:.3f} "
+            f"acc_calibrated={final['test_accuracy_calibrated']:.3f} "
+            f"(uncalibrated auc={final['test_auc_uncalibrated']:.3f})"
+        )
+        baselines = metadata["baselines"]
+        print(
+            f"  Baselines: majority_class acc={baselines['majority_class']['accuracy']:.3f} | "
+            f"momentum acc={baselines['momentum']['accuracy']:.3f} auc={baselines['momentum']['auc']:.3f}"
+        )
 
         print("Generating initial predictions for all seeded stocks...")
         prediction_service = PredictionService(db)

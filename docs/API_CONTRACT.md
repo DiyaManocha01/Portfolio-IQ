@@ -151,7 +151,8 @@ window when beta matters for a decision.
 ```json
 {
   "symbol": "TCS", "direction": "POSITIVE" | "NEGATIVE" | "NEUTRAL", "probability": 0.6,
-  "confidence": "LOW" | "MEDIUM" | "HIGH", "model_name": "random_forest",
+  "confidence": "LOW" | "MEDIUM" | "HIGH", "model_name": "logistic_regression",
+  "model_version": "6a16cbbc7b76",
   "prediction_date": "2026-09-16",
   "important_features": ["Recent price momentum", "RSI (relative strength)", "Trading volume"],
   "disclaimer": "This is a model-generated estimate, not financial advice or a guaranteed outcome."

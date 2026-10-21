@@ -66,6 +66,7 @@ class PredictionOut(BaseModel):
     probability: float
     confidence: str
     model_name: str
+    model_version: str | None = None
     prediction_date: date
     important_features: list[str]
     disclaimer: str = (
