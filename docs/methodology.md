@@ -845,6 +845,78 @@ real conclusion about which features matter.
 
 ---
 
-*(Sections 11+ — stress-test assumptions, counterfactual search, and the
+## 11. Risk Attribution (Phase 14)
+
+Implemented in `backend/app/portfolio/risk_attribution_service.py`, using
+a new pure function `marginal_contribution_to_risk()` added to Phase 8's
+`risk_service.py`. New endpoint `GET /portfolio/risk-attribution`;
+`GET /portfolio/risk` is untouched (purely additive, no ADR needed).
+
+### 11.1 The question this answers
+
+Phase 8 already computes `risk_contribution_pct` per holding (component
+contribution to variance, normalized to sum to 100%) -- but a reader
+still has to compare that by eye against the holding's money weight to
+notice "this position is small in money but large in risk." This phase
+puts the two numbers side by side and computes the ratio directly.
+
+### 11.2 Marginal contribution to risk (MCR)
+
+Portfolio variance is `sigma_p^2 = w' Cov w`. By the chain rule:
+
+```
+d(sigma_p)/d(w_i) = (Cov @ w)_i / sigma_p = MCR_i
+```
+
+in the SAME units as `sigma_p` itself (e.g. if `sigma_p` is an annualized
+volatility of 0.20, `MCR_i` is roughly "how many points of annualized
+vol a small increase in holding i's weight would add"). Phase 8 already
+computes `(Cov @ w)_i` internally (as `marginal_contrib`, for the
+variance-based `risk_contribution_pct`) but never divided by `sigma_p` or
+exposed it raw -- this phase does both.
+
+### 11.3 Euler's theorem check
+
+Component contribution `CC_i = w_i * MCR_i` sums EXACTLY to `sigma_p`
+(portfolio volatility is a degree-1-homogeneous function of the weights,
+so Euler's theorem applies) -- verified in
+`test_component_contributions_sum_exactly_to_portfolio_vol_eulers_theorem`
+with a hand-worked 2-asset example where this produces an exact 50/50
+risk split despite 60/40 money weights (a genuinely clean, pen-and-paper
+checkable test case -- see the test file for the full derivation).
+
+### 11.4 `risk_concentration_ratio`
+
+```
+risk_concentration_ratio = risk_contribution_pct / weight_pct
+```
+
+`> 1` means a holding contributes disproportionately MORE risk than its
+money weight would suggest; `< 1` means less. This single number is the
+actual point of this phase's UI -- sorted by `risk_contribution_pct`
+descending, the holdings at the top with a ratio well above 1 are the
+ones concentrating risk beyond what their position size alone would
+imply.
+
+### 11.5 Measured example (seeded demo portfolio, DEV_SAMPLE data)
+
+| Symbol | Weight % | Risk contribution % | Concentration ratio |
+|---|---|---|---|
+| ICICIBANK | 14.62% | 19.87% | **1.359** |
+| INFY | 17.39% | 18.70% | 1.075 |
+| RELIANCE | 15.02% | 14.66% | 0.976 |
+| TCS | 13.51% | 12.98% | 0.961 |
+| HDFCBANK | 11.28% | 12.16% | 1.078 |
+| LT | 11.30% | 11.18% | 0.989 |
+| ITC | 16.88% | 10.44% | **0.618** |
+
+ICICIBANK stands out: 14.6% of money but 19.9% of portfolio risk. ITC is
+the opposite -- a large money position (16.9%) contributing
+disproportionately less risk (10.4%). Weight % and risk contribution %
+each independently sum to ~100% (verified by test).
+
+---
+
+*(Sections 12+ — stress-test assumptions, counterfactual search, and the
 prediction ledger design — are added as each corresponding phase is
 implemented, not written in advance.)*

@@ -91,6 +91,22 @@ class PortfolioRisk(BaseModel):
     data_source: str
 
 
+class RiskAttributionItem(BaseModel):
+    symbol: str
+    name: str
+    sector: str
+    weight_pct: float
+    risk_contribution_pct: float
+    marginal_contribution_to_vol: float
+    risk_concentration_ratio: float
+
+
+class PortfolioRiskAttribution(BaseModel):
+    portfolio_annualized_volatility: float
+    attributions: list[RiskAttributionItem]
+    data_source: str
+
+
 class OptimizationAllocation(BaseModel):
     symbol: str
     current_weight_pct: float

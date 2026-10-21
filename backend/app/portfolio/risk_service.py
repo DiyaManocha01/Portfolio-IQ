@@ -106,6 +106,26 @@ def diversification_ratio(weights: np.ndarray, standalone_vols: np.ndarray, port
     return float(weighted_avg_vol / portfolio_vol)
 
 
+def marginal_contribution_to_risk(cov: np.ndarray, w: np.ndarray, portfolio_vol: float) -> np.ndarray:
+    """Marginal contribution to risk (MCR): d(portfolio_vol)/d(w_i), in the
+    SAME units as portfolio_vol itself (e.g. if portfolio_vol is an
+    annualized decimal like 0.20, MCR_i says roughly how many percentage
+    points of annualized vol a small increase in holding i's weight adds).
+
+    Derivation: portfolio_variance = w' Cov w, so
+    d(portfolio_variance)/d(w_i) = 2*(Cov @ w)_i, and by the chain rule
+    d(portfolio_vol)/d(w_i) = d(sqrt(variance))/d(w_i) = (Cov @ w)_i / portfolio_vol.
+
+    Component contribution CC_i = w_i * MCR_i sums EXACTLY to portfolio_vol
+    (Euler's theorem for the degree-1-homogeneous function sqrt(w'Cov w)) --
+    this is what Phase 8's risk_contribution_pct already normalizes to
+    100%; this function exposes the raw, un-normalized sensitivity instead.
+    """
+    if portfolio_vol <= 1e-12:
+        return np.zeros_like(w)
+    return (cov @ w) / portfolio_vol
+
+
 def shrunk_covariance(returns_df: pd.DataFrame) -> tuple[np.ndarray, float, str]:
     """Annualized covariance matrix via Ledoit-Wolf shrinkage, plus the
     estimator's chosen shrinkage intensity and a label for which method was
@@ -173,6 +193,7 @@ class PortfolioRiskService:
         cov, shrinkage_intensity, covariance_method = shrunk_covariance(returns_df[symbols])
         port_variance = float(w @ cov @ w) or 1e-9
         marginal_contrib = cov @ w
+        mcr_to_vol = marginal_contribution_to_risk(cov, w, annualized_vol)
         raw_contrib = w * marginal_contrib
         risk_contrib_pct = raw_contrib / raw_contrib.sum() * 100 if raw_contrib.sum() != 0 else raw_contrib
 
@@ -232,6 +253,7 @@ class PortfolioRiskService:
             "_weights": weights,
             "_returns_df": returns_df,
             "_portfolio_variance": port_variance,
+            "_marginal_contribution_to_vol": dict(zip(symbols, mcr_to_vol.tolist())),
         }
 
     def _empty_result(self) -> dict:

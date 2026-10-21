@@ -7,6 +7,7 @@ from app.models.portfolio import Holding, Portfolio
 from app.models.user import User
 from app.portfolio.health_service import PortfolioHealthService
 from app.portfolio.optimization_service import VALID_METHODS, PortfolioOptimizationService
+from app.portfolio.risk_attribution_service import RiskAttributionService
 from app.portfolio.risk_service import PortfolioRiskService
 from app.portfolio.weakness_service import PortfolioWeaknessService
 from app.portfolio.whatif_service import WhatIfService
@@ -21,8 +22,10 @@ from app.schemas.portfolio import (
     PortfolioOptimization,
     PortfolioPerformance,
     PortfolioRisk,
+    PortfolioRiskAttribution,
     PortfolioSummary,
     PortfolioWeaknesses,
+    RiskAttributionItem,
     RiskContribution,
     ScoreComponent,
     WeaknessOut,
@@ -186,6 +189,19 @@ def risk(
         diversification_ratio=r["diversification_ratio"],
         covariance_method=r["covariance_method"],
         shrinkage_intensity=r["shrinkage_intensity"],
+        data_source=r["data_source"],
+    )
+
+
+@router.get("/risk-attribution", response_model=PortfolioRiskAttribution)
+def risk_attribution(
+    portfolio: Portfolio = Depends(get_current_portfolio),
+    db: Session = Depends(get_db),
+):
+    r = RiskAttributionService(db).compute(portfolio)
+    return PortfolioRiskAttribution(
+        portfolio_annualized_volatility=r["portfolio_annualized_volatility"],
+        attributions=[RiskAttributionItem(**a) for a in r["attributions"]],
         data_source=r["data_source"],
     )
 

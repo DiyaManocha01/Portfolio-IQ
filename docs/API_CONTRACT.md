@@ -157,6 +157,30 @@ specific broker's live rate card -- see `docs/limitations.md`. Pass
 current quantity) produce an empty `trades` list and all-zero `deltas`.
 ALWAYS render the disclaimer; never phrase this as a trade instruction.
 
+### GET /portfolio/risk-attribution (Phase 14)
+```json
+{
+  "portfolio_annualized_volatility": 0.1975,
+  "attributions": [
+    { "symbol": "ICICIBANK", "name": "ICICI Bank", "sector": "Financial Services",
+      "weight_pct": 14.62, "risk_contribution_pct": 19.87,
+      "marginal_contribution_to_vol": 0.2594, "risk_concentration_ratio": 1.359 },
+    { "symbol": "ITC", "name": "ITC Limited", "sector": "Consumer Staples",
+      "weight_pct": 16.88, "risk_contribution_pct": 10.44,
+      "marginal_contribution_to_vol": 0.118, "risk_concentration_ratio": 0.618 }
+  ],
+  "data_source": "DEV_SAMPLE"
+}
+```
+`attributions` sorted by `risk_contribution_pct` descending. `weight_pct`
+(% of portfolio money) and `risk_contribution_pct` (% of portfolio risk)
+each independently sum to ~100% across all holdings.
+`risk_concentration_ratio = risk_contribution_pct / weight_pct` -- `>1`
+means a holding contributes disproportionately MORE risk than its money
+weight; `<1` means less. `marginal_contribution_to_vol` is the raw
+sensitivity `d(portfolio_vol)/d(weight_i)`, same units as
+`portfolio_annualized_volatility`. See `docs/methodology.md` Section 11.
+
 ### GET /portfolio/health
 ```json
 {
