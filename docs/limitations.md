@@ -363,6 +363,33 @@ UI, the methodology doc, or a future paper, it's listed here.
   side effects on the other terms in reality (the ceteris-paribus
   assumption is a modeling simplification, not a fact about markets).
 
+## Per-Prediction SHAP Explanations (Phase 17)
+
+- **SHAP output units differ by model type** — `random_forest`'s
+  TreeExplainer output is in natural probability-contribution space,
+  while `logistic_regression` and `xgboost` are in log-odds (margin)
+  space. `shap_output_space` is reported explicitly on every prediction;
+  comparing raw `shap_values` magnitudes across a model-type switch (if
+  retraining later selects a different candidate) without checking this
+  field would be a real error.
+- **SHAP explains the uncalibrated base estimator, not the calibrated,
+  actually-served model.** Calibration is monotonic (doesn't change
+  feature ranking/direction), but `base_value + sum(shap_values)` does
+  NOT reconstruct the exact served probability — it reconstructs the base
+  estimator's own raw score. This is a real, documented approximation
+  trade-off, not an oversight (see ADR 0006's alternatives-considered
+  section for why a slower, more "complete" approach was not used).
+- **The background sample (100 pooled training rows) is a fixed
+  convention**, not validated against SHAP literature's recommended
+  background size for this specific problem — a reasonable default, not
+  a tuned choice.
+- **Still runs on synthetic DEV_SAMPLE data** — like Phase 6's model
+  itself, the feature attributions are honestly computed from a model
+  with near-random predictive power on this data; a feature with a large
+  SHAP value here is driving a prediction that itself has little real
+  predictive value, not necessarily a "genuinely important" signal in any
+  market sense.
+
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).

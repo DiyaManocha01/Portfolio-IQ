@@ -46,6 +46,11 @@ to `requirements.txt` / `package.json`.
 | **sparsediffpy** (transitive) | 0.6.1 | Apache-2.0 | Phase 9 | Sparse differentiation, cvxpy dependency |
 | **jinja2** (transitive) | 3.1.6 | BSD-3-Clause | Phase 9 | Templating, osqp dependency |
 | **scipy** | 1.17.1 | BSD-3-Clause | Phase 13 | Normal distribution CDF/quantile (`stats.norm`) and skew/kurtosis for the Deflated Sharpe Ratio backtest calculation. Already an indirect dependency of scikit-learn; promoted to an explicit, version-pinned direct dependency now that `app/ml/backtest.py` imports it directly. |
+| **shap** | 0.51.0 | MIT | Phase 17 | Per-prediction feature-attribution explanations for the ML direction classifier |
+| **slicer** (transitive, via shap) | 0.0.8 | MIT | Phase 17 | Array slicing utility, shap dependency |
+| **numba** (transitive, via shap) | 0.68.0 | BSD-2-Clause | Phase 17 | JIT compilation, shap dependency |
+| **llvmlite** (transitive, via numba) | 0.50.0 | BSD-2-Clause AND Apache-2.0 WITH LLVM-exception | Phase 17 | LLVM bindings, numba dependency |
+| **tqdm** (transitive, via shap) | 4.70.1 | MPL-2.0 AND MIT | Phase 17 | Progress bars, shap dependency. MPL-2.0 is file-level weak copyleft -- fine as an unmodified dependency, not a concern for this project's own code. |
 
 All Phase 9 transitive dependencies checked individually — all permissive
 (MIT/Apache-2.0/BSD-3-Clause), no copyleft. None are pinned in
@@ -56,7 +61,6 @@ resolved by pip at install time in this environment.
 ### Not-yet-added, expected soon (noted here so the next phase isn't a surprise)
 
 - Phase 7 (FinBERT path): `transformers` + a torch backend — already referenced in code as an optional import, not yet in `requirements.txt` since it's unused in this network-restricted sandbox; will be added and recorded if/when a FinBERT evaluation is actually run (see `scripts/evaluate_finbert.py`, written to be run locally)
-- Phase 17: `shap` (MIT) — SHAP explanations
 
 ## Frontend (JavaScript/TypeScript)
 

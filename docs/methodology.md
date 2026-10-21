@@ -1062,6 +1062,93 @@ and risk impact, partially offset by a worse ML outlook term.
 
 ---
 
-*(Sections 14+ — SHAP explanations and the prediction ledger design — are
-added as each corresponding phase is implemented, not written in
-advance.)*
+## 14. Per-Prediction SHAP Explanations (Phase 17)
+
+Implemented in `backend/app/ml/shap_explain.py`, wired into
+`app/ml/predict.py`. See `docs/adr/0006-shap-per-prediction-explanations.md`
+for what this supersedes (Phase 6's static, training-run-wide
+`feature_importance_rank`).
+
+### 14.1 Fast, model-specific explainers
+
+- `logistic_regression`: `shap.LinearExplainer` on the fitted
+  `LogisticRegression` step, applied to the scaler-TRANSFORMED feature
+  row (LinearExplainer operates on the linear model's own standardized
+  input space).
+- `random_forest` / `xgboost`: `shap.TreeExplainer`, directly on raw
+  features.
+
+Measured at single-digit milliseconds per explanation, vs. ~7.5 seconds
+for the generic `shap.Explainer` (permutation-based) against this
+project's actual trained models — a real, measured engineering decision.
+
+### 14.2 What's explained: the base estimator, not the calibrated model
+
+SHAP explains `calibrated_model.calibrated_classifiers_[0].estimator` --
+the UNCALIBRATED base model extracted from the deployed
+`CalibratedClassifierCV`. Phase 6's calibration (Platt/sigmoid scaling)
+is a monotonic 1-D remapping of this base score, so it does not change
+which features matter or their direction -- but `base_value +
+sum(shap_values)` reconstructs the base estimator's own raw score, NOT
+the exact calibrated probability actually served to the user. Verified
+directly (reproducible via `test_shap_values_reconstruct_base_estimator_logodds_exactly`):
+for a real TCS prediction, SHAP's `base_value + sum(shap_values) =
+0.2559`, exactly matching `math.log(p/(1-p))` computed from the base
+estimator's own `predict_proba` (also `0.2559`) -- an exact algebraic
+identity, not an approximation.
+
+### 14.3 Output space differs by model type — an explicit, checked caveat
+
+| Model type | SHAP output space |
+|---|---|
+| `random_forest` | Natural probability-contribution space (a random forest's leaves are themselves probability estimates — no separate margin concept) |
+| `logistic_regression` | Log-odds (margin), pre-sigmoid |
+| `xgboost` | Log-odds (margin), pre-sigmoid |
+
+Verified directly against this project's actual trained models (not
+assumed from documentation): an XGBoost model's `base_value ≈ 0.00046`
+(near zero, consistent with log-odds for a roughly-balanced problem) with
+`predict_proba` showing 0.532 — these are NOT the same number, confirming
+log-odds space. Every API response reports `shap_output_space` explicitly
+so comparing raw SHAP magnitudes across model types without checking it
+is never silently wrong.
+
+### 14.4 Background sample
+
+A pooled sample of up to 100 training feature rows (`SHAP_BACKGROUND_SAMPLE_SIZE`),
+saved during `train.py::train_and_select_model` alongside the model
+artifact (`shap_background.joblib`, gitignored, regenerated on every
+retrain) — tied to the exact same training run's data as the deployed
+model, used as the SHAP explainer's baseline distribution.
+
+### 14.5 Graceful degradation
+
+If SHAP explanation fails for any reason (missing background sample, an
+unrecognized model type, an older model artifact predating this phase),
+`predict_for_stock()` falls back to Phase 6's static
+`feature_importance_rank` rather than failing the prediction — a
+prediction without its per-prediction explanation is still useful.
+
+### 14.6 Measured example (seeded demo data, TCS prediction)
+
+`GET /stocks/TCS/prediction` (model: `logistic_regression`):
+
+| Feature | SHAP value (log-odds) |
+|---|---|
+| `return_5d` | +0.376 |
+| `ema20_ratio` | -0.324 |
+| `sma20_ratio` | +0.120 |
+| `volume_ratio` | +0.066 |
+| *(remaining 5 features)* | each < 0.01 in magnitude |
+
+`important_features` for TCS: `["5-day momentum", "Exponential moving
+average trend", "Moving average trend"]`. For INFY (same model, different
+feature row): `["Exponential moving average trend", "5-day momentum",
+"Moving average trend"]` — a genuinely different ranking (reordered, not
+identical), confirming this is per-prediction, not a relabeled static
+list.
+
+---
+
+*(Sections 15+ — the prediction ledger design — are added as each
+corresponding phase is implemented, not written in advance.)*

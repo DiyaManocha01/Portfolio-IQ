@@ -57,6 +57,8 @@ MODEL_DIR = Path(__file__).resolve().parent.parent / "data" / "models"
 MODEL_PATH = MODEL_DIR / "direction_model.joblib"
 METADATA_PATH = MODEL_DIR / "model_metadata.json"
 CALIBRATION_PLOT_PATH = MODEL_DIR / "calibration_plot.png"
+SHAP_BACKGROUND_PATH = MODEL_DIR / "shap_background.joblib"
+SHAP_BACKGROUND_SAMPLE_SIZE = 100  # Phase 17: pooled training rows used as the SHAP explainer's baseline
 
 N_SPLITS = 5
 CALIBRATION_METHOD = "sigmoid"  # Platt scaling -- safer than isotonic on our modest sample sizes
@@ -274,6 +276,15 @@ def train_and_select_model(db: Session) -> dict:
 
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(calibrated, MODEL_PATH)
+
+    # Phase 17: a pooled sample of training feature rows, saved alongside the
+    # model, used as the SHAP explainer's background/baseline distribution --
+    # tied to the SAME training run's data as the deployed model, not a
+    # separately-chosen reference set.
+    pooled_all = pd.concat(per_stock.values(), ignore_index=True)
+    background_n = min(SHAP_BACKGROUND_SAMPLE_SIZE, len(pooled_all))
+    background_sample = pooled_all[FEATURE_COLUMNS].sample(n=background_n, random_state=42)
+    joblib.dump(background_sample, SHAP_BACKGROUND_PATH)
 
     model_version = _model_version(best_name)
     metadata = {

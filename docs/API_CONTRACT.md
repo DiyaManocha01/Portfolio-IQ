@@ -289,11 +289,26 @@ window when beta matters for a decision.
   "confidence": "LOW" | "MEDIUM" | "HIGH", "model_name": "logistic_regression",
   "model_version": "6a16cbbc7b76",
   "prediction_date": "2026-09-16",
-  "important_features": ["Recent price momentum", "RSI (relative strength)", "Trading volume"],
+  "important_features": ["5-day momentum", "Exponential moving average trend", "Moving average trend"],
+  "shap_values": { "return_1d": 0.00851, "return_5d": 0.37576, "...": "one entry per feature column" },
+  "shap_base_value": -0.0101, "shap_output_space": "log_odds" | "probability",
   "disclaimer": "This is a model-generated estimate, not financial advice or a guaranteed outcome."
 }
 ```
-ALWAYS render the disclaimer text and use "Potentially Positive/Negative" style language in the UI, never "will go up".
+ALWAYS render the disclaimer text and use "Potentially Positive/Negative"
+style language in the UI, never "will go up". `important_features`
+(Phase 17) is now a genuine PER-PREDICTION SHAP ranking -- it legitimately
+differs between stocks on the same model, not a fixed global list.
+`shap_values`/`shap_base_value`/`shap_output_space` are `null` if SHAP
+explanation wasn't available for this prediction (falls back
+gracefully, never fails the prediction itself).
+**`shap_output_space` differs by model type** -- `"probability"` for
+`random_forest`, `"log_odds"` for `logistic_regression`/`xgboost`; never
+compare raw `shap_values` magnitudes without checking this field first.
+`shap_base_value + sum(shap_values)` reconstructs the UNCALIBRATED base
+model's own score, not the exact served `probability` (calibration is a
+separate, monotonic remapping step) -- see `docs/methodology.md`
+Section 14.2.
 
 ### GET /stocks/{symbol}/news?limit=10 -> list of
 ```json

@@ -5,6 +5,15 @@ estimate (POSITIVE / NEGATIVE / NEUTRAL) with a probability and an explicit,
 documented confidence bucket. This module never invents accuracy numbers --
 confidence is derived purely from how far the predicted probability sits
 from the 0.5 decision boundary.
+
+Phase 17: ``important_features`` is now derived from a PER-PREDICTION SHAP
+explanation (app.ml.shap_explain) -- genuinely specific to this stock's
+current feature values -- rather than Phase 6's static, training-run-wide
+``feature_importance_rank`` (the same 3 features for every stock). See
+docs/adr/0006-shap-per-prediction-explanations.md. If SHAP explanation
+isn't available (e.g. no background sample saved, an older model
+artifact), this falls back to the old static ranking rather than failing
+the prediction -- a prediction is still useful without its explanation.
 """
 
 from __future__ import annotations
@@ -15,6 +24,7 @@ from datetime import date, datetime, timezone
 import joblib
 from sqlalchemy.orm import Session
 
+from app.ml import shap_explain
 from app.ml.features import FEATURE_COLUMNS, build_feature_frame
 from app.ml.train import MODEL_PATH, load_metadata
 from app.models.prediction import Confidence, Direction, Prediction
@@ -93,7 +103,14 @@ class PredictionService:
         direction = _direction_from_probability(probability)
         confidence = _confidence_from_probability(probability)
 
-        top_features = self.metadata.get("feature_importance_rank", FEATURE_COLUMNS)[:3]
+        shap_detail = None
+        try:
+            shap_detail = shap_explain.explain(self.model_name, self.model, X)
+            top_features = sorted(
+                shap_detail["shap_values"], key=lambda f: -abs(shap_detail["shap_values"][f])
+            )[:3]
+        except shap_explain.ShapExplanationUnavailable:
+            top_features = self.metadata.get("feature_importance_rank", FEATURE_COLUMNS)[:3]
         important_features = [FEATURE_LABELS.get(f, f) for f in top_features]
 
         today = date.today()
@@ -127,4 +144,9 @@ class PredictionService:
             self.db.add(prediction)
         self.db.commit()
         self.db.refresh(prediction)
+        # Transient (NOT persisted/mapped) attribute: the full per-feature
+        # SHAP breakdown, for the API route to expose. Not stored in the DB
+        # -- recomputed fresh (cheaply, see shap_explain.py) on every call
+        # rather than adding a schema column for it.
+        prediction.shap_detail = shap_detail
         return prediction

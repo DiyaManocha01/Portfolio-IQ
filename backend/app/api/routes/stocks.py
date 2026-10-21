@@ -165,6 +165,8 @@ def get_stock_prediction(symbol: str, db: Session = Depends(get_db)):
 
     import json
 
+    shap_detail = getattr(prediction, "shap_detail", None)
+
     return PredictionOut(
         symbol=stock.symbol,
         direction=prediction.direction.value,
@@ -174,6 +176,9 @@ def get_stock_prediction(symbol: str, db: Session = Depends(get_db)):
         model_version=prediction.model_version,
         prediction_date=prediction.prediction_date,
         important_features=json.loads(prediction.important_features),
+        shap_values=shap_detail["shap_values"] if shap_detail else None,
+        shap_base_value=shap_detail["base_value"] if shap_detail else None,
+        shap_output_space=shap_detail["output_space"] if shap_detail else None,
     )
 
 

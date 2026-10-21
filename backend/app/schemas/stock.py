@@ -69,6 +69,9 @@ class PredictionOut(BaseModel):
     model_version: str | None = None
     prediction_date: date
     important_features: list[str]
+    shap_values: dict[str, float] | None = None
+    shap_base_value: float | None = None
+    shap_output_space: str | None = None
     disclaimer: str = (
         "This is a model-generated estimate, not financial advice or a guaranteed outcome."
     )
