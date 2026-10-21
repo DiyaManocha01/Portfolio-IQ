@@ -306,6 +306,38 @@ UI, the methodology doc, or a future paper, it's listed here.
   strategies in a visually intuitive way; this is stated directly in the
   chart's axis label, not hidden.
 
+## Stress / Scenario Testing (Phase 15)
+
+- **Single-factor (CAPM beta) approximation only.** Real market stress
+  typically involves correlation spikes (diversification benefits
+  shrinking exactly when they're needed most) and idiosyncratic,
+  holding-specific effects — neither is modeled here. A beta-scaled shock
+  is a standard, well-understood first approximation, not a realistic
+  simulation of how a real crisis would actually distribute across these
+  specific holdings.
+- **Historical scenario presets are stylized single-number shocks, not a
+  literal historical replay.** The documented magnitude figures (e.g.
+  "COVID 2020: ~-38%") are publicly well-known approximate facts, not
+  independently verified against a primary source in this sandbox, and
+  not tied to any actual historical daily price path for these specific
+  holdings (which this project has no cached data for).
+- **Beta fallback (1.0) when insufficient history exists is a real
+  assumption, not a measurement** — flagged per-holding
+  (`used_fallback_beta`) but still just an assumption, most likely to
+  bind for newly-added candidate stocks.
+- **The scenario text parser is regex pattern-matching, not natural
+  language understanding.** It recognizes a small, fixed vocabulary of
+  sector aliases and direction words — a real-world phrasing outside that
+  vocabulary will correctly fail to parse (raising `ScenarioParseError`)
+  rather than silently misinterpreting it, but this means the parser's
+  practical coverage of plain-English requests is narrow by design, not
+  an oversight to be "fixed" by loosening the matching (which would trade
+  the current fail-safe behavior for a fail-silent one).
+- **No cross-sector correlation or event-driven co-movement is modeled**
+  in a sector-specific shock — shocking one sector doesn't propagate any
+  spillover effect to other sectors, even though real sector shocks
+  usually do have some spillover.
+
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).

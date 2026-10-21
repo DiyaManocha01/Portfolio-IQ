@@ -917,6 +917,86 @@ each independently sum to ~100% (verified by test).
 
 ---
 
-*(Sections 12+ — stress-test assumptions, counterfactual search, and the
+## 12. Stress / Scenario Testing (Phase 15)
+
+Implemented in `backend/app/portfolio/stress_test_service.py` and
+`backend/app/portfolio/scenario_parser.py`. New endpoint
+`POST /portfolio/stress-test`. Net-new (no ADR — nothing existing
+superseded).
+
+### 12.1 Shock mechanism — CAPM beta scaling
+
+For a market-wide shock, each holding's estimated shocked return is:
+
+```
+stock_shock_pct = market_shock_pct * beta_vs_nifty50
+```
+
+a standard single-factor (CAPM) approximation: a stock with beta 1.5
+is estimated to move 1.5x the market shock; a stock with beta 0.5 moves
+half as much. Beta uses a 400-day lookback — Phase 5's own documented
+recommendation for when beta matters for a decision (stress testing
+is exactly such a decision; Phase 5's analysis endpoint defaults to a
+shorter window for general display, this phase does not). A holding with
+insufficient overlapping history to estimate beta (Phase 5: fewer than
+20 overlapping trading days with the benchmark) falls back to beta=1.0
+(the market-average assumption), with `used_fallback_beta: true` on that
+holding — never silently assumed.
+
+A **sector-specific shock** (`sector_shocks: {sector: pct}`) overrides
+beta-scaling entirely for holdings in that sector — applied directly as
+that holding's shock, since a sector-level assumption already encodes
+sector-specific information the single-factor market-beta model can't.
+
+### 12.2 Named historical scenario presets — explicitly stylized, not literal replay
+
+`SCENARIO_PRESETS` (`covid_2020_crash`, `gfc_2008`, `moderate_correction`)
+use publicly well-known, illustrative approximate index-level magnitude
+figures (e.g. "NIFTY fell roughly 35-40% peak-to-trough in Feb-Mar 2020"),
+**not fetched or verified against a primary source in this sandbox**, and
+applied as a SINGLE stylized shock number through the same beta-scaling
+mechanism as any hypothetical shock — this is explicitly NOT a literal
+day-by-day replay of the actual 2008/2020 price path (this project has no
+real historical price data for those periods cached here to replay
+literally). Every preset's `note` field states this caveat directly in
+the API response, not just in docs.
+
+### 12.3 Scenario text parser — regex, not NLU, translation only
+
+`scenario_parser.py` recognizes a small, fixed set of phrasings
+("IT stocks crash 20%", "market drops 15%", "-10% for Healthcare") via
+deterministic regex matching against a sector-alias table and a
+direction-word list — it is explicitly NOT a natural-language-
+understanding system and makes NO call to an LLM. It produces ONLY
+structured parameters (`market_shock_pct` or `sector_shocks`), fed into
+the exact same deterministic shock calculation as any other input to this
+endpoint — it never computes a result and never says anything advisory.
+Text it can't confidently parse (no percentage found, an ambiguous
+direction, no identifiable sector/market target) raises
+`ScenarioParseError` rather than guessing, since a wrong silent guess
+would misrepresent what the user actually asked for.
+
+### 12.4 Measured example (seeded demo portfolio, DEV_SAMPLE data)
+
+A -20% market shock (reproducible via
+`POST /portfolio/stress-test {"market_shock_pct": -0.20}`):
+
+| Symbol | Beta used | Shock applied | Loss |
+|---|---|---|---|
+| ICICIBANK | 1.273 | -25.47% | -9,963 |
+| INFY | 0.925 | -18.49% | -8,608 |
+| RELIANCE | 0.903 | -18.07% | -7,264 |
+| HDFCBANK | 1.056 | -21.12% | -6,375 |
+| TCS | 0.850 | -16.99% | -6,145 |
+| LT | 0.933 | -18.67% | -5,648 |
+| ITC | 0.535 | -10.70% | -4,834 |
+
+Total portfolio loss: -18.25% (not a flat -20%, because the
+portfolio-weighted average beta is below 1.0) — a sanity-checkable
+consequence of the beta-scaling mechanism, not a separately-tuned number.
+
+---
+
+*(Sections 13+ — counterfactual search, SHAP explanations, and the
 prediction ledger design — are added as each corresponding phase is
 implemented, not written in advance.)*

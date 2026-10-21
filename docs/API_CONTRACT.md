@@ -181,6 +181,40 @@ weight; `<1` means less. `marginal_contribution_to_vol` is the raw
 sensitivity `d(portfolio_vol)/d(weight_i)`, same units as
 `portfolio_annualized_volatility`. See `docs/methodology.md` Section 11.
 
+### POST /portfolio/stress-test (Phase 15)
+Body: exactly one of:
+- `{ "scenario_preset": "covid_2020_crash" | "gfc_2008" | "moderate_correction" }`
+- `{ "scenario_text": "IT stocks crash 20%" }` (parsed via a narrow regex matcher, NOT an LLM -- unparseable text returns 400)
+- `{ "market_shock_pct": -0.20 }`
+- `{ "sector_shocks": { "Information Technology": -0.25 } }` (overrides beta-scaling for that sector)
+
+```json
+{
+  "market_shock_pct": -0.2, "sector_shocks": {},
+  "total_value_before": 267660.63, "total_value_after": 218825.17,
+  "total_loss": -48835.46, "total_loss_pct": -18.25,
+  "breakdown": [
+    { "symbol": "ICICIBANK", "name": "ICICI Bank", "sector": "Financial Services",
+      "value_before": 39124.5, "value_after": 29161.2, "loss": -9963.3,
+      "shock_applied_pct": -0.2547, "beta_used": 1.273, "used_fallback_beta": false,
+      "sector_shock_applied": false }
+  ],
+  "data_source": "DEV_SAMPLE",
+  "disclaimer": "This is a hypothetical, single-factor (CAPM beta) stress simulation, not a prediction or a literal historical replay. It never modifies your actual holdings. Real crises often involve correlation spikes and idiosyncratic effects this simple model does not capture -- see docs/limitations.md.",
+  "scenario_preset": null, "scenario_label": null, "scenario_note": null
+}
+```
+`breakdown` sorted by `loss` ascending (largest loss first). Never writes
+to the database -- the real portfolio is read, never mutated (verified by
+a dedicated test). `beta_used: null` + `sector_shock_applied: true` means
+a sector override replaced beta-scaling for that holding entirely.
+`used_fallback_beta: true` means the holding's real beta couldn't be
+estimated (< 20 overlapping trading days with the benchmark) and a
+market-average beta of 1.0 was substituted. Scenario presets' magnitudes
+are illustrative, publicly well-known approximate figures, NOT a literal
+historical day-by-day replay -- see `docs/methodology.md` Section 12.2.
+ALWAYS render the disclaimer.
+
 ### GET /portfolio/health
 ```json
 {

@@ -221,6 +221,41 @@ class WhatIfResult(BaseModel):
     disclaimer: str
 
 
+class StressTestRequest(BaseModel):
+    scenario_preset: str | None = None
+    market_shock_pct: float | None = None
+    sector_shocks: dict[str, float] | None = None
+    scenario_text: str | None = None
+
+
+class StressTestHoldingImpact(BaseModel):
+    symbol: str
+    name: str
+    sector: str
+    value_before: float
+    value_after: float
+    loss: float
+    shock_applied_pct: float
+    beta_used: float | None
+    used_fallback_beta: bool
+    sector_shock_applied: bool
+
+
+class StressTestResult(BaseModel):
+    market_shock_pct: float
+    sector_shocks: dict[str, float]
+    total_value_before: float
+    total_value_after: float
+    total_loss: float
+    total_loss_pct: float
+    breakdown: list[StressTestHoldingImpact]
+    data_source: str
+    disclaimer: str
+    scenario_preset: str | None = None
+    scenario_label: str | None = None
+    scenario_note: str | None = None
+
+
 class TopFactor(BaseModel):
     name: str
     explanation: str

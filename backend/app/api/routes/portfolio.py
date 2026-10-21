@@ -9,6 +9,8 @@ from app.portfolio.health_service import PortfolioHealthService
 from app.portfolio.optimization_service import VALID_METHODS, PortfolioOptimizationService
 from app.portfolio.risk_attribution_service import RiskAttributionService
 from app.portfolio.risk_service import PortfolioRiskService
+from app.portfolio.scenario_parser import ScenarioParseError, parse_scenario_text
+from app.portfolio.stress_test_service import SCENARIO_PRESETS, StressTestService
 from app.portfolio.weakness_service import PortfolioWeaknessService
 from app.portfolio.whatif_service import WhatIfService
 from app.schemas.portfolio import (
@@ -28,6 +30,9 @@ from app.schemas.portfolio import (
     RiskAttributionItem,
     RiskContribution,
     ScoreComponent,
+    StressTestHoldingImpact,
+    StressTestRequest,
+    StressTestResult,
     WeaknessOut,
     PerformancePoint,
     TradeCost,
@@ -203,6 +208,59 @@ def risk_attribution(
         portfolio_annualized_volatility=r["portfolio_annualized_volatility"],
         attributions=[RiskAttributionItem(**a) for a in r["attributions"]],
         data_source=r["data_source"],
+    )
+
+
+@router.post("/stress-test", response_model=StressTestResult)
+def stress_test(
+    request: StressTestRequest,
+    portfolio: Portfolio = Depends(get_current_portfolio),
+    db: Session = Depends(get_db),
+):
+    service = StressTestService(db)
+
+    if request.scenario_preset is not None:
+        if request.scenario_preset not in SCENARIO_PRESETS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown scenario_preset: {request.scenario_preset!r}. Must be one of {list(SCENARIO_PRESETS)}.",
+            )
+        r = service.apply_preset(portfolio, request.scenario_preset)
+    elif request.scenario_text is not None:
+        try:
+            parsed = parse_scenario_text(request.scenario_text)
+        except ScenarioParseError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        r = service.apply_shock(
+            portfolio,
+            market_shock_pct=parsed.get("market_shock_pct", 0.0),
+            sector_shocks=parsed.get("sector_shocks"),
+        )
+    elif request.market_shock_pct is not None or request.sector_shocks is not None:
+        r = service.apply_shock(
+            portfolio,
+            market_shock_pct=request.market_shock_pct or 0.0,
+            sector_shocks=request.sector_shocks,
+        )
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide one of: scenario_preset, scenario_text, market_shock_pct, or sector_shocks.",
+        )
+
+    return StressTestResult(
+        market_shock_pct=r["market_shock_pct"],
+        sector_shocks=r["sector_shocks"],
+        total_value_before=r["total_value_before"],
+        total_value_after=r["total_value_after"],
+        total_loss=r["total_loss"],
+        total_loss_pct=r["total_loss_pct"],
+        breakdown=[StressTestHoldingImpact(**b) for b in r["breakdown"]],
+        data_source=r["data_source"],
+        disclaimer=r["disclaimer"],
+        scenario_preset=r.get("scenario_preset"),
+        scenario_label=r.get("scenario_label"),
+        scenario_note=r.get("scenario_note"),
     )
 
 
