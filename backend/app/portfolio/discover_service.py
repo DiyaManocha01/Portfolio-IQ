@@ -3,7 +3,12 @@
 Powers /discover ("Stocks That May Fit Your Portfolio"). The candidate
 universe is every seeded stock the user does not already hold in full
 (stocks already held are still scored, since partial-fit context can be
-useful, but they naturally score low on diversification).
+useful, but they naturally score low on diversification-related terms).
+
+Uses PortfolioFitService.compute_fit_batch() (Phase 10) rather than calling
+compute_fit() once per stock -- the Fit Engine's z-scoring is only
+statistically meaningful against a real batch, and computing the whole
+candidate set in one pass avoids redundant portfolio-level work.
 """
 
 from __future__ import annotations
@@ -13,14 +18,13 @@ from sqlalchemy.orm import Session
 from app.ml.predict import ModelNotTrainedError, PredictionService
 from app.models.portfolio import Portfolio
 from app.models.stock import Stock
-from app.portfolio.fit_service import PortfolioFitService
+from app.portfolio.fit_service import PortfolioFitService, default_preset_for
 from app.services.market_data.service import MarketDataService
 
 
 class DiscoverService:
     def __init__(self, db: Session):
         self.db = db
-        self.fit_service = PortfolioFitService(db)
         self.market_data = MarketDataService(db)
 
     def get_candidates(self, portfolio: Portfolio, limit: int = 20) -> list[dict]:
@@ -28,9 +32,12 @@ class DiscoverService:
         all_stocks = self.db.query(Stock).all()
         candidates = [s for s in all_stocks if s.symbol not in held_symbols] or all_stocks
 
+        fit_service = PortfolioFitService(self.db, preset=default_preset_for(portfolio))
+        fits = fit_service.compute_fit_batch(portfolio, candidates)
+
         results = []
         for stock in candidates:
-            fit = self.fit_service.compute_fit(stock, portfolio)
+            fit = fits[stock.symbol]
             latest, _ = self.market_data.get_quote(stock)
 
             try:

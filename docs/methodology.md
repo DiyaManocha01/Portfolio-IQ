@@ -476,6 +476,117 @@ not anything about real-market optimal allocations.
 
 ---
 
-*(Sections 7+ — the Fit Engine formula, stress-test assumptions,
-counterfactual search, and the prediction ledger design — are added as
-each corresponding phase is implemented, not written in advance.)*
+## 7. Portfolio Fit Engine (Phase 10)
+
+Implemented in `backend/app/portfolio/fit_service.py` and
+`backend/app/portfolio/hypothetical.py`. See
+`docs/adr/0005-fit-engine-rebuild.md` for what this supersedes. This is
+PortfolioIQ's core differentiator -- "how well does this stock fit MY
+portfolio", not "is this stock good".
+
+### 7.1 The formula
+
+```
+Fit = w1*Outlook + w2*Sentiment - w3*dRisk + w4*dDiversification - w5*dConcentration
+```
+
+Each term is a **z-score** (standardized against a batch of stocks' raw
+values for that term, mean-centered, unit-variance) before weighting, not
+a raw number -- see 7.3.
+
+### 7.2 Raw terms (before z-scoring)
+
+- **Outlook** = `prediction.probability - 0.5` (Phase 6's calibrated
+  model), centered so 50% (no signal) maps to 0. Neutral (0) if the model
+  isn't trained.
+- **Sentiment** = Phase 7's `average_score_time_decayed`. Neutral (0) if
+  no recent news.
+- **dRisk / dDiversification / dConcentration**: computed by
+  `hypothetical.py`'s `current_metrics()` and
+  `hypothetical_metrics_after_adding()` -- both using the IDENTICAL
+  covariance-quadratic-form calculation (Ledoit-Wolf shrinkage, same as
+  Phase 8), differing only in the weight vector/symbol set. The
+  hypothetical scenario adds the candidate at a 10% target weight,
+  scaling existing holdings down proportionally. `dRisk = hypothetical_vol
+  - current_vol`, `dDiversification = hypothetical_div_ratio -
+  current_div_ratio`, `dConcentration = hypothetical_hhi - current_hhi`.
+  For an already-held stock, all three are exactly 0 by construction (the
+  "hypothetical" scenario for an already-held stock is defined as
+  identical to the current one -- "adding more" isn't a meaningful
+  scenario here).
+
+### 7.3 Z-scoring
+
+For a batch of stocks being scored together, each raw term's mean and
+standard deviation are computed across that batch, and every stock's raw
+value for that term is converted to `z = (raw - mean) / std` (0 if
+`std ≈ 0`, i.e. every stock in the batch has an identical raw value for
+that term). **The batch matters**: `/portfolio-fit/{symbol}` z-scores
+against the full stock universe (the most statistically meaningful
+population available for a single symbol); `/discover` z-scores against
+its own candidate batch (the unheld stocks, scored together in one
+pass). **The same stock's fit_score can therefore differ between the two
+endpoints** -- this is intentional (a z-score only means something
+relative to a defined population), not a bug, and is called out here so
+it's never mistaken for an inconsistency.
+
+### 7.4 Weights, presets, and the final score
+
+```
+logit = sum(sign[term] * weight[term] * z[term] for term in terms)
+fit_score = 100 / (1 + exp(-logit))   # logistic sigmoid, range (0, 100)
+```
+
+where `sign` is `+1` for Outlook/Sentiment/dDiversification and `-1` for
+dRisk/dConcentration (higher risk or concentration is a worse outcome).
+Three named presets (each summing to weight 1.0):
+
+| Preset | Outlook | Sentiment | Risk | Diversification | Concentration |
+|---|---|---|---|---|---|
+| `balanced` (default) | 0.25 | 0.15 | 0.20 | 0.25 | 0.15 |
+| `risk_averse` | 0.15 | 0.10 | 0.35 | 0.25 | 0.15 |
+| `growth_seeking` | 0.40 | 0.20 | 0.10 | 0.15 | 0.15 |
+
+A user's stated risk tolerance (Conservative/Moderate/Aggressive) maps to
+a default preset (`risk_averse`/`balanced`/`growth_seeking`) when no
+explicit `?preset=` is given.
+
+**Important honesty note on "contribution":** each factor's reported
+`contribution = sign * weight * z` is in pre-sigmoid (logit/additive)
+units. These sum EXACTLY to `logit`, the sigmoid's input -- they do NOT
+sum linearly to the displayed 0-100 `fit_score`, because the sigmoid
+transform is nonlinear. Treating factor contributions as if they
+partition the final score additively would misrepresent the math.
+
+### 7.5 Diagnostics (not scoring inputs)
+
+`volatility` (the candidate's own standalone annualized vol) and
+`correlation_with_portfolio` (simple average pairwise correlation with
+current holdings) are still reported on `/discover` for UI context, but
+no longer feed the Fit score directly -- the portfolio-level
+dRisk/dDiversification deltas already account for correlation properly
+through the covariance matrix, which is strictly more rigorous than a
+naive average correlation.
+
+### 7.6 Measured example (seeded demo portfolio, DEV_SAMPLE data)
+
+Reproducible via `python -m app.data.seed` then `GET /portfolio-fit/SUNPHARMA`
+(balanced preset, z-scored against the full universe):
+
+| Factor | Contribution (logit) | Raw value | Z-score |
+|---|---|---|---|
+| Diversification Impact | +0.640 | +0.047 | +2.562 |
+| Risk Impact | +0.499 | -0.011 | -2.496 |
+| Concentration Impact | +0.162 | -0.018 | -1.080 |
+| News Sentiment | -0.079 | +0.059 | -0.527 |
+| ML Outlook | -0.277 | -0.004 | -1.109 |
+
+`logit = 0.945` -> `fit_score = 72.0`. The same stock via `/discover`
+(z-scored against the unheld-candidate batch instead) scores `63.8` --
+the documented population-dependence from 7.3, not an inconsistency.
+
+---
+
+*(Sections 8+ — stress-test assumptions, counterfactual search, and the
+prediction ledger design — are added as each corresponding phase is
+implemented, not written in advance.)*

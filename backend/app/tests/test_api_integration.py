@@ -106,7 +106,8 @@ def test_portfolio_fit_endpoint(client, auth_headers):
     assert resp.status_code == 200
     body = resp.json()
     assert 0 <= body["fit_score"] <= 100
-    assert len(body["factors"]) == 6
+    # Phase 10: 5 z-scored terms (Outlook, Sentiment, Risk/Diversification/Concentration deltas)
+    assert len(body["factors"]) == 5
     assert abs(sum(body["weights_used"].values()) - 1.0) < 0.01
 
 

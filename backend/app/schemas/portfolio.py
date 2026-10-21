@@ -139,12 +139,15 @@ class PortfolioFitFactor(BaseModel):
     name: str
     contribution: float
     explanation: str
+    raw_value: float
+    z_score: float
 
 
 class PortfolioFitOut(BaseModel):
     symbol: str
     name: str
     fit_score: float
+    preset: str
     factors: list[PortfolioFitFactor]
     strengths: list[str]
     concerns: list[str]

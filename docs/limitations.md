@@ -172,6 +172,45 @@ UI, the methodology doc, or a future paper, it's listed here.
   — the covariance matrix feeding the optimizer has the same estimation
   noise discussed there, mitigated by shrinkage but not eliminated.
 
+## Portfolio Fit Engine (Phase 10)
+
+- **Factor "contribution" is in pre-sigmoid (logit) units, not a linear
+  share of the 0-100 fit_score.** Contributions sum exactly to the
+  sigmoid's input; the final `100 / (1 + exp(-logit))` squash is
+  nonlinear, so they do not partition the displayed score additively.
+  Documented in `docs/methodology.md` Section 7.4 — a UI that sums
+  contributions and expects the total to equal `fit_score` would be
+  wrong.
+- **The same stock's fit_score differs between `/portfolio-fit/{symbol}`
+  and `/discover`** because each z-scores against a different population
+  (the full universe vs. the unheld-candidate batch). This is intentional
+  — see Section 7.3 — but worth stating plainly since it could otherwise
+  look like a bug to anyone comparing the two screens side by side.
+- **The hypothetical "add at 10% target weight" sizing is a fixed
+  convention, not tuned or user-configurable yet.** A stock's measured
+  dRisk/dDiversification/dConcentration would differ at a different
+  hypothetical sizing (e.g. 5% vs. 20%) — this project does not currently
+  report sensitivity to that choice. Phase 11's What-If Simulator, which
+  lets the user specify an actual target weight/amount, is the intended
+  way to explore this directly rather than relying on the Fit Engine's
+  fixed convention.
+- **Z-scoring against a small universe (the current ~13-20 seeded
+  stocks) is less statistically stable than against a larger one.** Once
+  a full NIFTY 100 cache is populated (Phase 4's `fetch_nifty100.py`, run
+  locally), z-scores will be computed against a much larger, more
+  representative population — current scores should be read as
+  demonstrating the methodology, not as stable rankings.
+- **Computing raw terms for the full universe is O(n) per fit/discover
+  request** (one `hypothetical_metrics_after_adding()` simulation per
+  candidate stock, each itself doing a covariance fit). Fine at the
+  current seeded-universe scale; would need caching or batching if the
+  universe grows to the full NIFTY 100 and this becomes a per-request
+  cost on a hot path — not yet implemented, noted here rather than hidden.
+- **Correlation with current holdings is reported as a simple average**
+  (a diagnostic only, not a Fit score input) — the same unweighted-average
+  simplification the old service used, still not accounting for how
+  correlated the *existing* holdings are with each other.
+
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).

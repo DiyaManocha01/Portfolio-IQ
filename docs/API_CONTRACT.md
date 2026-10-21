@@ -231,23 +231,40 @@ headlines when `USE_LIVE_NEWS=true` and a local cache exists (see
 ```
 Page title MUST be "Stocks That May Fit Your Portfolio" -- never "Best Stocks" / "Stocks You Should Buy".
 
-### GET /portfolio-fit/{symbol}
+### GET /portfolio-fit/{symbol}?preset=balanced|risk_averse|growth_seeking (Phase 10)
 ```json
 {
-  "symbol": "LT", "name": "Larsen & Toubro", "fit_score": 48.6,
+  "symbol": "SUNPHARMA", "name": "Sun Pharmaceutical Industries", "fit_score": 72.0,
+  "preset": "balanced",
   "factors": [
-    { "name": "Prediction", "contribution": 12.9, "explanation": "Model outlook is neutral with 52% estimated probability (low confidence)." },
-    { "name": "Correlation", "contribution": 11.9, "explanation": "Average historical correlation with current holdings is 0.41." },
-    { "name": "Risk", "contribution": 8.4, "explanation": "Standalone annualized volatility of 29.2%." },
-    { "name": "Sector Balance", "contribution": 8.3, "explanation": "..." },
-    { "name": "User Preference", "contribution": 7.1, "explanation": "..." },
-    { "name": "Diversification", "contribution": 0.0, "explanation": "..." }
+    { "name": "Diversification Impact", "contribution": 0.64, "raw_value": 0.0474, "z_score": 2.562,
+      "explanation": "Adding this stock would change the diversification ratio by +0.047." },
+    { "name": "Risk Impact", "contribution": 0.499, "raw_value": -0.0114, "z_score": -2.496,
+      "explanation": "Adding this stock would change portfolio volatility by -1.14 pts." },
+    { "name": "Concentration Impact", "contribution": 0.162, "raw_value": -0.0178, "z_score": -1.08,
+      "explanation": "..." },
+    { "name": "News Sentiment", "contribution": -0.079, "raw_value": 0.059, "z_score": -0.527, "explanation": "..." },
+    { "name": "ML Outlook", "contribution": -0.277, "raw_value": -0.0043, "z_score": -1.109, "explanation": "..." }
   ],
   "strengths": ["..."], "concerns": ["..."],
-  "weights_used": { "prediction": 0.25, "risk": 0.15, "diversification": 0.2, "correlation": 0.2, "sector_balance": 0.1, "user_preference": 0.1 }
+  "weights_used": { "outlook": 0.25, "sentiment": 0.15, "risk_delta": 0.2, "diversification_delta": 0.25, "concentration_delta": 0.15 }
 }
 ```
-`factors` is sorted by contribution descending -- render as a bar/waterfall breakdown plus the strengths/concerns lists. This screen is the single most important screen in the whole demo.
+`factors` is sorted by contribution descending -- render as a
+bar/waterfall breakdown plus the strengths/concerns lists. This screen is
+the single most important screen in the whole demo. **`contribution` is
+in pre-sigmoid (logit) units** -- factors sum to the sigmoid's input, NOT
+linearly to `fit_score` (that transform is nonlinear) -- see
+`docs/methodology.md` Section 7.4; never sum contributions in the UI and
+display the total as if it were the fit score. Risk/Diversification/Concentration
+"Impact" factors are deltas -- what happens to the PORTFOLIO if this stock
+is added at a modest hypothetical weight -- not standalone properties of
+the stock. An already-held stock's three delta factors are always exactly
+0 (raw_value). `preset` defaults to a mapping from the user's risk
+tolerance if not given; unknown `preset` values return 400. **The same
+symbol's `fit_score` can legitimately differ between this endpoint and
+`/discover`** -- each z-scores against a different population (full
+universe vs. the candidate batch) -- see Section 7.3.
 
 ---
 
