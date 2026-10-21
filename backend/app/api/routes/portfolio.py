@@ -167,6 +167,16 @@ def risk(
         correlation_matrix=[CorrelationPair(**cp) for cp in r["correlation_matrix"]],
         sector_concentration=[AllocationSlice(**sc) for sc in r["sector_concentration"]],
         top_stock_concentration_pct=r["top_stock_concentration_pct"],
+        var_95=r["var_95"],
+        cvar_95=r["cvar_95"],
+        var_99=r["var_99"],
+        cvar_99=r["cvar_99"],
+        hhi_holdings=r["hhi_holdings"],
+        hhi_sector=r["hhi_sector"],
+        effective_number_of_bets=r["effective_number_of_bets"],
+        diversification_ratio=r["diversification_ratio"],
+        covariance_method=r["covariance_method"],
+        shrinkage_intensity=r["shrinkage_intensity"],
         data_source=r["data_source"],
     )
 

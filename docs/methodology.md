@@ -289,6 +289,121 @@ financial headlines, which this project does not have.
 
 ---
 
-*(Sections 5+ — risk-attribution math, Fit Engine formula, stress-test
-assumptions, counterfactual search, and the prediction ledger design — are
-added as each corresponding phase is implemented, not written in advance.)*
+## 5. Portfolio Risk Analytics (Phase 8)
+
+Implemented in `backend/app/portfolio/risk_service.py`. See
+`docs/adr/0004-portfolio-risk-rebuild.md` for what this supersedes.
+
+### 5.1 Inputs
+
+A portfolio's holdings' daily close-price returns, aligned on common
+trading dates over a `lookback_days` window (default 180), current
+value-weighted (not day-by-day re-based — a documented MVP simplification
+carried over unchanged from the original service).
+
+### 5.2 Volatility, Sharpe, max drawdown (unchanged from the MVP)
+
+- Annualized volatility = `std(daily portfolio returns) * sqrt(252)`.
+- Sharpe ratio = `mean(excess daily return) / std(daily return) * sqrt(252)`,
+  6% annual risk-free rate assumption (approximate Indian T-bill).
+- Max drawdown = largest peak-to-trough decline of the cumulative
+  portfolio value series over the window.
+
+### 5.3 Ledoit-Wolf shrinkage covariance
+
+`sklearn.covariance.LedoitWolf` fit on the holdings' daily return matrix,
+annualized (`* 252`). Shrinkage pulls the (noisy) sample covariance matrix
+toward a more structured target, controlled by an intensity the estimator
+chooses itself from the data (`shrinkage_intensity`, returned in the API
+response, range `[0, 1]`; `0` would mean "no shrinkage needed", `1` would
+mean "ignore the sample covariance entirely"). Used for the risk
+contribution calculation (`contrib_i = w_i * (Cov @ w)_i`, normalized to
+sum to 100%) — same marginal-contribution-to-variance formula as before,
+just a better-conditioned input matrix.
+
+Falls back to the raw sample covariance (`covariance_method: "sample"`,
+`shrinkage_intensity: 0.0`) when there are fewer than 2 holdings or fewer
+return observations than holdings — shrinkage is undefined/degenerate in
+that regime, and silently returning a shrunk-looking number would misstate
+what was actually computed.
+
+### 5.4 Historical VaR and CVaR
+
+Computed at 95% and 99% confidence directly from the realized portfolio
+daily-return series — no normal-distribution assumption:
+
+```
+alpha = 1 - confidence
+var_quantile = returns.quantile(alpha)      # e.g. the 5th percentile
+VaR  = -var_quantile                         # reported as a positive loss fraction
+tail = returns[returns <= var_quantile]
+CVaR = -mean(tail)                           # expected loss *given* VaR is breached
+```
+
+Both are floored at 0 (a VaR/CVaR cannot be presented as negative — that
+would mean "the model expects a gain on the worst days", which is not a
+sensible reading of a loss threshold). `CVaR >= VaR` always holds by
+construction (the tail mean is at least as extreme as the quantile that
+defines it).
+
+### 5.5 HHI and effective number of bets
+
+`HHI(weights) = sum(w_i^2)` after normalizing weights to sum to 1.
+Computed separately for holding weights and sector weights. Range: `1/n`
+(perfectly spread across `n` positions) to `1` (single position/sector).
+
+`effective_number_of_bets = 1 / HHI(holding weights)`. **This is the
+weight-concentration definition** — equal weights across `n` holdings
+gives exactly `n`; it does not account for correlation between holdings.
+A PCA/eigenvalue-based "effective number of *independent* bets" (which
+would account for correlation — two highly correlated holdings
+contributing less than two genuinely independent ones) is a different,
+more involved calculation and is explicitly out of scope for this phase
+(see ADR 0004's alternatives-considered section).
+
+### 5.6 Diversification ratio
+
+Choueifaty & Coignard's diversification ratio:
+
+```
+DR = (sum_i w_i * standalone_annualized_vol_i) / portfolio_annualized_vol
+```
+
+`DR >= 1` whenever the holdings aren't perfectly correlated (the usual
+case); `DR == 1` only in the perfectly-correlated edge case, since
+diversification can never make a portfolio *more* volatile than its
+weighted-average components would suggest. Note the portfolio volatility
+in this ratio is still derived from the Ledoit-Wolf-shrunk covariance
+matrix (Section 5.3), while `standalone_annualized_vol_i` uses each
+holding's raw sample standard deviation — so the strict `>= 1` bound is a
+property of the *sample*-covariance case, not guaranteed to the last
+decimal once shrinkage reshapes the diagonal too. In practice (measured
+against the seeded demo portfolio) this is not an issue: `DR = 1.412`.
+
+### 5.7 Measured example (seeded demo portfolio, DEV_SAMPLE data)
+
+From a direct run against the seeded demo portfolio (not hand-picked,
+reproducible via `python -m app.data.seed` then `GET /portfolio/risk`):
+
+| Metric | Value |
+|---|---|
+| `annualized_volatility` | 0.1975 |
+| `var_95` / `cvar_95` | 0.0177 / 0.0211 |
+| `var_99` / `cvar_99` | 0.0224 / 0.0257 |
+| `hhi_holdings` | 0.1464 |
+| `hhi_sector` | 0.2264 |
+| `effective_number_of_bets` | 6.83 |
+| `diversification_ratio` | 1.412 |
+| `covariance_method` | `ledoit_wolf` |
+| `shrinkage_intensity` | 0.0412 |
+
+These are DEV_SAMPLE (synthetic) numbers — they say the formulas run
+correctly against this portfolio's shape, not anything about real market
+risk. Must be re-measured once real cached NIFTY data populates holdings.
+
+---
+
+*(Sections 6+ — optimization suggestions, the Fit Engine formula,
+stress-test assumptions, counterfactual search, and the prediction ledger
+design — are added as each corresponding phase is implemented, not written
+in advance.)*

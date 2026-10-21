@@ -33,6 +33,20 @@ def test_portfolio_risk_metrics_shape(client, auth_headers):
     assert -1 <= body["max_drawdown"] <= 0
     total_risk_contrib = sum(rc["risk_contribution_pct"] for rc in body["risk_contributions"])
     assert 90 <= total_risk_contrib <= 110  # should sum close to 100%
+    # Phase 8 fields
+    assert 0 <= body["var_95"] <= 1 and 0 <= body["cvar_95"] <= 1
+    assert 0 <= body["var_99"] <= 1 and 0 <= body["cvar_99"] <= 1
+    assert body["cvar_95"] >= body["var_95"]  # expected shortfall is never milder than VaR
+    assert body["cvar_99"] >= body["var_99"]
+    assert 0 <= body["hhi_holdings"] <= 1
+    assert 0 <= body["hhi_sector"] <= 1
+    assert body["effective_number_of_bets"] >= 1
+    # Diversification ratio is >=1 under the *sample* covariance's subadditivity, but
+    # Ledoit-Wolf shrinkage also reshapes the diagonal, so this is a sanity floor, not
+    # a tight theoretical bound -- see the hand-calculated unit test for the exact case.
+    assert body["diversification_ratio"] > 0.9
+    assert body["covariance_method"] in {"ledoit_wolf", "sample"}
+    assert 0 <= body["shrinkage_intensity"] <= 1
 
 
 def test_portfolio_health_components_sum_to_overall(client, auth_headers):

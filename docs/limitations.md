@@ -101,6 +101,45 @@ UI, the methodology doc, or a future paper, it's listed here.
   overfitting the calibration curve itself. Revisit once training runs on
   the full real NIFTY 100 cache, which will have far more data per fold.
 
+## Portfolio Risk (Phase 8)
+
+- **Shrinkage intensity is auto-selected per computation, not tuned.**
+  `sklearn.covariance.LedoitWolf` picks its own shrinkage intensity from
+  the data on every call — there is no fixed/validated target intensity,
+  and it is not cross-validated against a downstream objective (e.g.
+  out-of-sample portfolio variance forecasting accuracy). It is reported
+  (`shrinkage_intensity` in the API response) rather than hidden, but its
+  "correctness" has not been separately validated.
+- **VaR/CVaR are historical-simulation, not parametric or Monte Carlo.**
+  They assume the realized return distribution over the lookback window
+  (default 180 days) is representative of near-future risk — a classic
+  historical-VaR assumption that breaks down in regime changes. No
+  parametric (variance-covariance) or simulated alternative is computed
+  alongside it for comparison yet.
+- **"Effective number of bets" is the weight-concentration definition**
+  (`1/HHI`), not the PCA/correlation-aware "effective number of
+  *independent* bets." The two numbers answer different questions and are
+  not interchangeable — see `docs/methodology.md` Section 5.5 and ADR
+  0004's alternatives-considered section for why the more involved
+  correlation-aware version was deferred rather than approximated.
+- **Diversification ratio's strict `>= 1` theoretical bound is not
+  guaranteed to the last decimal**, because the portfolio volatility in
+  the ratio comes from the Ledoit-Wolf-shrunk covariance matrix while the
+  standalone volatilities used in its numerator come from raw sample
+  standard deviations — shrinkage can reshape the covariance diagonal
+  slightly away from the raw sample variances that the strict
+  subadditivity proof assumes. Not observed as an issue in practice
+  (measured at 1.412 on the seeded demo portfolio) but not proven
+  impossible either; the integration test uses a `> 0.9` sanity floor
+  rather than asserting the strict bound for this reason.
+- **All Phase 8 metrics inherit Phase 4's data limitations** (synthetic
+  DEV_SAMPLE data by default; real NIFTY cache numbers require the user to
+  run `fetch_nifty100.py` locally) and the existing small-holdings-count
+  instability noted for beta in Phase 5 — a covariance matrix estimated
+  from 5-15 holdings over a 180-day window is inherently noisier than one
+  estimated from a larger universe or longer window, which is exactly the
+  problem Ledoit-Wolf shrinkage mitigates but does not eliminate.
+
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).

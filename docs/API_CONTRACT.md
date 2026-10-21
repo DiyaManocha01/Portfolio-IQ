@@ -76,9 +76,24 @@ Note: assumes current holding quantities held constant across the window (docume
   "correlation_matrix": [{ "symbol_a": "TCS", "symbol_b": "RELIANCE", "correlation": 0.261 }, ...],
   "sector_concentration": [{ "label": "Information Technology", "value": 78874.85, "pct": 31.2 }, ...],
   "top_stock_concentration_pct": 17.4,
+  "var_95": 0.0177, "cvar_95": 0.0211, "var_99": 0.0224, "cvar_99": 0.0257,
+  "hhi_holdings": 0.1464, "hhi_sector": 0.2264,
+  "effective_number_of_bets": 6.83, "diversification_ratio": 1.412,
+  "covariance_method": "ledoit_wolf" | "sample", "shrinkage_intensity": 0.0412,
   "data_source": "DEV_SAMPLE"
 }
 ```
+Phase 8 fields: `var_95`/`cvar_95`/`var_99`/`cvar_99` are historical-simulation
+VaR/CVaR on realized portfolio daily returns, reported as positive loss
+fractions (never negative). `hhi_holdings`/`hhi_sector` are Herfindahl
+indices (range `1/n` to `1`). `effective_number_of_bets` is the
+weight-concentration definition (`1/hhi_holdings`) — NOT a
+correlation/PCA-aware measure, see `docs/methodology.md` Section 5.5.
+`covariance_method`/`shrinkage_intensity` report whether Ledoit-Wolf
+shrinkage was used for the covariance matrix behind `risk_contributions`
+and `diversification_ratio` (falls back to `"sample"` with intensity `0.0`
+when there are fewer than 2 holdings or fewer return observations than
+holdings).
 
 ### GET /portfolio/health
 ```json

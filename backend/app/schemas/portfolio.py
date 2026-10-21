@@ -78,6 +78,16 @@ class PortfolioRisk(BaseModel):
     correlation_matrix: list[CorrelationPair]
     sector_concentration: list[AllocationSlice]
     top_stock_concentration_pct: float
+    var_95: float
+    cvar_95: float
+    var_99: float
+    cvar_99: float
+    hhi_holdings: float
+    hhi_sector: float
+    effective_number_of_bets: float
+    diversification_ratio: float
+    covariance_method: str
+    shrinkage_intensity: float
     data_source: str
 
 
