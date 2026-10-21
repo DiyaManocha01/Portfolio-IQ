@@ -19,6 +19,11 @@ backend/app/data/models/*.png
 backend/app/data/cache/*.parquet
 backend/app/data/cache/cache_manifest.json
 
+# News cache (regeneratable locally via scripts/fetch_news_rss.py) and
+# FinBERT evaluation output (regeneratable via scripts/evaluate_finbert.py)
+backend/app/data/news_cache/
+backend/app/data/finbert_eval_results.csv
+
 # Node / frontend
 frontend/node_modules/
 frontend/dist/

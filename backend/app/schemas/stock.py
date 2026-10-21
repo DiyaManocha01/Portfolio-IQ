@@ -96,6 +96,8 @@ class SentimentSummary(BaseModel):
     neutral_pct: float
     negative_pct: float
     average_score: float
+    average_score_time_decayed: float
+    sentiment_half_life_days: float
     trend: str
     article_count: int
     model_used: str

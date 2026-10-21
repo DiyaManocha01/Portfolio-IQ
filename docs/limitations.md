@@ -17,7 +17,41 @@ UI, the methodology doc, or a future paper, it's listed here.
   similarly blocked, so the FinBERT sentiment provider (`nlp/finbert_sentiment.py`)
   has never downloaded model weights or been run here. The lexicon-based
   provider (`nlp/lexicon_sentiment.py`) is the only sentiment path actually
-  exercised in this environment.
+  exercised in this environment. `scripts/evaluate_finbert.py` (Phase 7)
+  has similarly never been run here for the same reason.
+- **No access to Economic Times / Moneycontrol RSS from this sandbox**
+  either (Phase 7). `scripts/fetch_news_rss.py` has never been run here;
+  all news shown by the running app in this environment is the synthetic
+  template generator (`USE_LIVE_NEWS=false`, the default).
+
+## News & Sentiment (Phase 7)
+
+- **Headline-to-stock matching is unvalidated.** `services/news/matching.py`
+  matches category-level RSS headlines to stocks via regex search for
+  distinctive company-name fragments. This has NOT been measured against a
+  labeled ground-truth set — both false positives (an unrelated headline
+  happening to contain a matched term) and false negatives (a relevant
+  headline phrased in a way that doesn't match any term) are expected and
+  unquantified.
+- **Bare short tickers are deliberately excluded from matching** (e.g.
+  `LT`) to avoid obvious collisions, at the cost of missing headlines that
+  refer to a company only by its bare ticker.
+- **RSS feed URLs can go stale.** `fetch_news_rss.py` reports (does not
+  silently ignore) a feed returning zero entries or a fetch error, but the
+  feed list itself (`services/news/rss_feeds.py`) is not continuously
+  verified — it may need updating if Economic Times or Moneycontrol change
+  their feed URLs.
+- **The FinBERT-vs-lexicon "agreement rate"** produced by
+  `evaluate_finbert.py` is NOT an accuracy measurement — there is no
+  human-labeled sentiment ground truth for these headlines in this
+  project. It measures how often two unsupervised scorers agree, nothing
+  more. See `docs/methodology.md` Section 4.5 for the full caveat and the
+  documented FinBERT English/US-training-data limitation for Indian
+  financial text.
+- **`SENTIMENT_HALF_LIFE_DAYS = 7.0`** (the time-decay aggregation
+  constant) is a documented, chosen default, not empirically derived or
+  tuned against real headline cadence (since real cadence data requires
+  running the RSS fetch script, which hasn't happened in this sandbox).
 
 ## Data
 

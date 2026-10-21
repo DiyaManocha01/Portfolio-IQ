@@ -169,9 +169,17 @@ ALWAYS render the disclaimer text and use "Potentially Positive/Negative" style 
 ### GET /stocks/{symbol}/sentiment
 ```json
 { "symbol": "TCS", "positive_pct": 61.0, "neutral_pct": 24.0, "negative_pct": 15.0,
-  "average_score": 0.18, "trend": "IMPROVING" | "DECLINING" | "STABLE",
+  "average_score": 0.18, "average_score_time_decayed": 0.156, "sentiment_half_life_days": 7.0,
+  "trend": "IMPROVING" | "DECLINING" | "STABLE",
   "article_count": 10, "model_used": "lexicon-v1" | "finbert" }
 ```
+`average_score` is a simple equal-weighted mean across recent articles;
+`average_score_time_decayed` (Phase 7) weighs more recent articles more
+heavily (`0.5 ** (age_days / sentiment_half_life_days)`) — both are
+returned so neither silently replaces the other. News source is
+`DataSource.DEV_SAMPLE` (synthetic) by default, or real RSS-ingested
+headlines when `USE_LIVE_NEWS=true` and a local cache exists (see
+`docs/methodology.md` Section 4).
 
 ---
 

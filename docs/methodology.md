@@ -214,9 +214,81 @@ exactly as measured, with the measurement method next to it, not asserted
 without a script that produced it (`app/ml/train.py::train_and_select_model`,
 re-run via `python -m app.data.seed`).
 
+## 4. News Ingestion & Sentiment Aggregation (Phase 7)
+
+Implemented in `backend/app/services/news/` (RSS ingestion) and
+`backend/app/services/news_service.py` (aggregation).
+
+### 4.1 Real headline source
+
+Economic Times and Moneycontrol public RSS feeds (`services/news/rss_feeds.py`)
+— chosen over a general-purpose news API by explicit project-owner decision:
+free, no API key, genuinely India/NSE-focused. Fetched by
+`scripts/fetch_news_rss.py`, run locally (this sandbox cannot reach either
+host — verified, same restriction as Yahoo Finance and Hugging Face).
+
+### 4.2 Headline-to-stock matching
+
+These are category-level feeds (e.g. "Markets", "Business"), not
+per-symbol, so each entry is matched against every seeded stock's
+distinctive name fragments (`services/news/matching.py`) via
+case-insensitive, word-boundary regex search over the title + summary.
+Bare short/ambiguous tickers (e.g. `LT` for Larsen & Toubro) are
+deliberately excluded from the match terms — only the full/distinctive
+company name is matched for those, to avoid obvious false positives (`LT`
+colliding with "Lt." as an abbreviation, a unit, etc.).
+
+**Not validated against a labeled ground-truth set.** This is a documented
+precision/recall tradeoff, not a solved problem — see `docs/limitations.md`.
+
+### 4.3 Caching and NewsService integration
+
+`services/news/cache.py` — a JSON file cache (`app/data/news_cache/rss_headlines.json`,
+gitignored), written by the fetch script, read cache-first by
+`NewsService.get_recent_news()` when `USE_LIVE_NEWS=true`. Real headlines
+are ingested into the `news`/`news_sentiment` tables tagged
+`DataSource.LIVE` (idempotent — re-running doesn't duplicate a headline
+already stored, matched by headline text + published timestamp). If
+`USE_LIVE_NEWS` is off, or no real headline matched a given stock, the
+original synthetic template-headline generator is used unchanged — the
+real-ingestion path is strictly additive, default behavior is unchanged.
+
+### 4.4 Time-decayed sentiment aggregation
+
+`news_service.py::_time_decayed_average()`: an exponentially time-weighted
+mean of each article's sentiment score,
+`weight_i = 0.5 ** (age_days_i / half_life_days)`, with
+`half_life_days = 7.0` (`SENTIMENT_HALF_LIFE_DAYS`, a documented, chosen
+constant — not derived from data; see the constant's docstring for the
+reasoning and the explicit note that it should be tuned once real headline
+volume/cadence from Phase 7's RSS ingestion gives a basis to do so
+empirically). Returned alongside the original simple (equal-weighted)
+average as `average_score_time_decayed`, so both are visible for
+comparison rather than silently replacing one with the other.
+
+### 4.5 FinBERT evaluation protocol and its limits
+
+`scripts/evaluate_finbert.py` (run locally, needs Hugging Face access this
+sandbox doesn't have) compares FinBERT against the lexicon scorer on real
+cached headlines. **Important distinction, stated here precisely because
+it's easy to misstate**: there is no human-labeled sentiment ground truth
+for these headlines in this project, so the script measures *agreement
+between two unsupervised scorers*, not accuracy against a correct answer —
+reporting it as "accuracy" would be a false claim.
+
+**Documented limitation**: FinBERT (`ProsusAI/finbert`) was trained on
+English financial text, primarily Reuters TRC2 and the Financial
+PhraseBank corpus — both Western/US-centric sources. Indian financial
+English headlines (ET/Moneycontrol) share financial terminology and
+should transfer reasonably, but India-specific terms (SEBI, RBI, GST,
+Indian corporate structures), occasional code-mixed Hindi-English
+phrasing in regional business press, and India-specific context are not
+represented in FinBERT's training data. No rigorous NLP evaluation of this
+gap exists in this project — it would require human-labeled Indian
+financial headlines, which this project does not have.
+
 ---
 
-*(Sections 4+ — news/sentiment aggregation, risk-attribution math, Fit
-Engine formula, stress-test assumptions, counterfactual search, and the
-prediction ledger design — are added as each corresponding phase is
-implemented, not written in advance.)*
+*(Sections 5+ — risk-attribution math, Fit Engine formula, stress-test
+assumptions, counterfactual search, and the prediction ledger design — are
+added as each corresponding phase is implemented, not written in advance.)*
