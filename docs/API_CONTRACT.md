@@ -470,6 +470,35 @@ bet) -- always read alongside `directional_predictions_resolved`.
 ALWAYS render the disclaimer and the "thin record" note together; never
 present a small sample as if it were a mature track record.
 
+## AI Portfolio Assistant (Phase 19)
+
+### POST /assistant/ask
+Body: `{ "question": "How risky is my portfolio?" }` (1-2000 chars)
+```json
+{
+  "answer": "Your portfolio's annualized volatility is 19.75%, with ICICIBANK contributing the most to risk at 19.87% (vs. 14.62% of your money) -- a concentration ratio of 1.36...",
+  "sources_used": ["portfolio_summary", "portfolio_health", "portfolio_weaknesses", "portfolio_risk", "risk_attribution"],
+  "guardrail_tripped": false,
+  "guardrail_matched_phrase": null,
+  "model": "claude-sonnet-5-5",
+  "disclaimer": "PortfolioIQ is an educational and analytical decision-support system. Its predictions and portfolio analytics are model-based estimates and are not guaranteed financial advice."
+}
+```
+Answers ONLY from already-computed data (never computes a new figure
+itself) and NEVER gives buy/sell advice or predicts future
+prices/returns -- enforced by both the system prompt and a separate
+keyword guardrail; if the guardrail trips, `answer` is replaced with a
+fixed safe-fallback message and `guardrail_tripped`/`guardrail_matched_phrase`
+say so. `sources_used` lists exactly which computed data blocks were
+available to the model for this question (always
+`portfolio_summary`/`portfolio_health`/`portfolio_weaknesses`; more are
+added when the question mentions a held/known stock symbol, risk/
+volatility, "new stock"/discovery, or track record/accuracy). Returns
+**503** if `ANTHROPIC_API_KEY` isn't configured on the backend. ALWAYS
+render the disclaimer. Requires auth (unlike the public `/ledger/*`
+endpoints) -- this answers questions about the current user's own
+portfolio.
+
 ## Error shape
 FastAPI default: `{ "detail": "message" }` with 401/404/400/503 status codes as appropriate. 503 specifically means the ML model hasn't been trained yet (won't happen against the seeded demo DB).
 

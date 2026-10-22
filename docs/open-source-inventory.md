@@ -51,6 +51,11 @@ to `requirements.txt` / `package.json`.
 | **numba** (transitive, via shap) | 0.68.0 | BSD-2-Clause | Phase 17 | JIT compilation, shap dependency |
 | **llvmlite** (transitive, via numba) | 0.50.0 | BSD-2-Clause AND Apache-2.0 WITH LLVM-exception | Phase 17 | LLVM bindings, numba dependency |
 | **tqdm** (transitive, via shap) | 4.70.1 | MPL-2.0 AND MIT | Phase 17 | Progress bars, shap dependency. MPL-2.0 is file-level weak copyleft -- fine as an unmodified dependency, not a concern for this project's own code. |
+| **anthropic** | 0.73.0 | MIT | Phase 19 | Official SDK for Claude API calls powering the AI portfolio assistant |
+| **distro** (transitive, via anthropic) | 1.9.0 | Apache-2.0 | Phase 19 | OS detection, anthropic SDK dependency |
+| **docstring-parser** (transitive, via anthropic) | 0.18.0 | MIT | Phase 19 | anthropic SDK dependency |
+| **jiter** (transitive, via anthropic) | 0.17.0 | MIT | Phase 19 | Fast JSON parsing, anthropic SDK dependency |
+| **sniffio** (transitive, via anthropic) | 1.3.1 | MIT OR Apache-2.0 | Phase 19 | Async library detection, anthropic SDK dependency |
 
 All Phase 9 transitive dependencies checked individually — all permissive
 (MIT/Apache-2.0/BSD-3-Clause), no copyleft. None are pinned in

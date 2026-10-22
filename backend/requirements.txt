@@ -24,3 +24,4 @@ feedparser==6.0.14
 pyportfolioopt==1.6.0
 scipy==1.17.1
 shap==0.51.0
+anthropic==0.73.0

@@ -1220,8 +1220,69 @@ fabricated to make the track record look more established. Both the
 near-empty or all-pending track record on a freshly deployed instance is
 the CORRECT, honest state, not a bug to paper over.
 
+## 16. AI Portfolio Assistant (Phase 19)
+
+Implemented in `backend/app/assistant/` (`context_builder.py`,
+`assistant_service.py`). New AUTHENTICATED endpoint `POST /assistant/ask`
+(unlike Phase 18's deliberately public ledger -- this answers questions
+about the current user's own portfolio).
+
+### 16.1 Architecture: retrieval-and-cite, never compute
+
+1. **`context_builder.build_context()`** deterministically decides which
+   already-computed data to fetch, via plain keyword/symbol matching
+   (same style as Phase 15's `scenario_parser.py`) -- never by asking the
+   LLM what it needs. Always includes portfolio summary/health/weaknesses;
+   additionally fetches stock predictions/sentiment (if a symbol is named
+   in the question), risk + risk-attribution (risk/volatility/
+   concentration/diversification keywords), discovery candidates ("new
+   stock"/"candidate"/"discover" keywords), or the prediction ledger's
+   track record ("track record"/"accuracy"/"history" keywords). Every
+   fetched block is listed in `sources_used`, so exactly what data a
+   given question had access to is always inspectable and testable
+   without a live LLM call.
+2. **Claude receives ONLY that data** as a JSON block plus the question,
+   with a system prompt instructing it to answer solely from what it was
+   given, cite real numbers near-verbatim, and explicitly refuse rather
+   than guess when the question needs something outside the provided
+   data. The assistant has no tool-calling or code-execution ability in
+   this request -- it has no way to produce a number that didn't already
+   come from `context_builder`.
+3. **A separate, deterministic keyword guardrail**
+   (`contains_advice_language()`) scans the model's own response for
+   buy/sell-advice or price-prediction phrasing ("you should buy",
+   "strong sell", "is going to rise", etc.) as defense-in-depth,
+   independent of the system prompt. If tripped, the response is replaced
+   with a fixed, safe fallback message rather than shown to the user.
+   This regex-based filter is the one part of this phase that's fully
+   unit-tested without a live API key -- 9+ hand-picked phrasings,
+   including deliberately data-citing (non-advice) sentences that must
+   NOT trip it.
+
+### 16.2 What is and isn't tested here
+
+Everything up to the actual Claude API call is deterministic and tested:
+the data router's keyword/symbol matching, the JSON-serializability of
+every context block (service-layer internal keys like
+`risk_service`'s `_weights`/`_returns_df` are explicitly stripped before
+reaching the LLM -- verified by test), the guardrail filter, and the
+clear 503 ("assistant not configured") path when `ANTHROPIC_API_KEY`
+isn't set. **The live LLM call itself is not tested in this sandbox** --
+this project has no Anthropic API key configured here, consistent with
+how Phase 4/7's network-dependent pieces are handled: the integration is
+built and ready, verified end-to-end with everything EXCEPT the actual
+API round-trip, and is exercised for real once the project owner sets a
+real key in their local `.env` (see `docs/limitations.md`).
+
+### 16.3 Model and provider
+
+Uses the official `anthropic` Python SDK (MIT license), configurable via
+`ASSISTANT_MODEL` (default `claude-sonnet-5-5` at the time this was
+written -- check `https://docs.claude.com/en/docs/about-claude/models`
+for what's current, since this default will age).
+
 ---
 
-*(Sections 16+ — the AI assistant, UI/UX polish, testing/security,
-deployment, and final documentation — are added as each corresponding
-phase is implemented, not written in advance.)*
+*(Sections 17+ — UI/UX polish, testing/security, deployment, and final
+documentation — are added as each corresponding phase is implemented,
+not written in advance.)*

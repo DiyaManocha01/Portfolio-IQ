@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     USE_LIVE_NEWS: bool = False
     NEWS_API_KEY: str = ""
 
+    # Phase 19: AI portfolio assistant. Empty by default -- the assistant
+    # endpoint returns a clear 503 ("not configured") rather than failing
+    # oddly when this isn't set. Never commit a real key; set it in your
+    # local .env only. See docs/methodology.md Section 16.
+    ANTHROPIC_API_KEY: str = ""
+    ASSISTANT_MODEL: str = "claude-sonnet-5-5"
+
     ENVIRONMENT: str = "development"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 

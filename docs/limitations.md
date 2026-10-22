@@ -428,6 +428,47 @@ UI, the methodology doc, or a future paper, it's listed here.
   backtest separately model transaction costs and realistic position
   sizing for their own, different purposes).
 
+## AI Portfolio Assistant (Phase 19)
+
+- **The live LLM call has never been executed in this sandbox.** No
+  `ANTHROPIC_API_KEY` is configured here. Every deterministic piece
+  (context routing, JSON-serialization of fetched data, the guardrail
+  filter, the 503-when-unconfigured path) is tested and verified; the
+  actual Claude API round-trip is not, and can't be until the project
+  owner sets a real key locally. Network reachability to
+  `api.anthropic.com` WAS verified directly from this sandbox (got a
+  real 401 response, not a connection error) -- unlike Yahoo
+  Finance/Hugging Face/the RSS hosts, which are actually blocked -- so
+  the integration is expected to work once a key is set, but this is an
+  expectation, not a demonstrated fact.
+- **The guardrail is keyword-based, not semantic.** It catches a
+  specific, hand-picked set of advice-like phrasings and was tested
+  against them, but a sufficiently differently-worded piece of advice
+  ("TCS looks like a great opportunity right now" with no "buy"/"sell"
+  verb) could slip through the regex. The system prompt is the primary
+  defense; the keyword filter is explicitly defense-in-depth, not a
+  complete solution, and both layers rely on the underlying model
+  actually following instructions it has no mechanism to be forced to
+  follow.
+- **The data router's keyword matching can both over- and
+  under-trigger.** A question containing "risk" in an unrelated sense
+  would still pull in risk data (harmless -- more context, not wrong
+  context); a question that needs stock-specific data but doesn't
+  literally contain that stock's ticker symbol (e.g. "what about the IT
+  stock I hold") would NOT trigger `stock_details` and the assistant
+  would correctly have to say it lacks that specific data, per its
+  system prompt -- a real coverage gap, not a crash, but a gap.
+- **No conversation memory.** Each `/assistant/ask` call is independent
+  -- there's no multi-turn context carried between questions.
+  **Cost and latency are real** (an external paid API call per
+  question) and not modeled or rate-limited in this phase.
+- **The assistant cannot verify its own citations are accurate** beyond
+  what the system prompt instructs -- there's no automated check that a
+  cited number in the response text actually matches a value in the
+  context block (that would require parsing the LLM's natural-language
+  output for embedded numbers and cross-checking them, not attempted
+  here).
+
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).
