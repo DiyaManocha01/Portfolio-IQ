@@ -461,7 +461,11 @@ UI, the methodology doc, or a future paper, it's listed here.
 - **No conversation memory.** Each `/assistant/ask` call is independent
   -- there's no multi-turn context carried between questions.
   **Cost and latency are real** (an external paid API call per
-  question) and not modeled or rate-limited in this phase.
+  question). As of Phase 21, `/assistant/ask` is rate-limited
+  (20 requests/minute per client IP, via the same `slowapi` limiter used
+  on the auth endpoints) as a basic cost-control/abuse backstop -- this
+  bounds the *rate* of paid API calls a single client can trigger, it
+  does not model or cap total cost.
 - **The assistant cannot verify its own citations are accurate** beyond
   what the system prompt instructs -- there's no automated check that a
   cited number in the response text actually matches a value in the
@@ -472,7 +476,17 @@ UI, the methodology doc, or a future paper, it's listed here.
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).
-- **No frontend automated tests yet.**
 - **Alembic only has one migration (the baseline)** as of Phase 4 — schema
   changes in later phases must each add a proper migration, not assume
   `create_all` ever runs again (it's been removed from `seed.py`).
+
+## Testing & Security (Phase 21)
+
+- **Frontend automated tests were added in Phase 21** (Vitest + React
+  Testing Library) covering `utils/format.ts` and smoke-level rendering
+  of the Phase 20 UI (loading/error/data states, form submission,
+  mocked service responses) — not full user-flow coverage, and no
+  visual-regression or accessibility testing.
+- **See `docs/security-review.md`** for the full Phase 21 dependency
+  audit, what was upgraded/replaced vs. deferred and why, and what the
+  new auth/assistant rate limiting does and does not cover.

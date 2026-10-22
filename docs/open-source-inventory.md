@@ -20,19 +20,19 @@ to `requirements.txt` / `package.json`.
 | psycopg2-binary | 2.9.10 | LGPL-3.0 | Phase 1 | PostgreSQL driver |
 | pydantic / pydantic-settings | 2.10.4 / 2.7.1 | MIT | Phase 1 | Validation, settings |
 | email-validator | 2.2.0 | CC0-1.0 / BSD-2-Clause (dual) | Phase 1 | Pydantic `EmailStr` support |
-| python-jose | 3.3.0 | MIT | Phase 1 | JWT encode/decode |
+| PyJWT | 2.15.1 | MIT | Phase 1 (swapped from python-jose in Phase 21) | JWT encode/decode. Replaced python-jose in Phase 21's security review: python-jose 3.4.0 had an unpatched CVE (PYSEC-2026-4298, no fix version available) and pulled in `ecdsa`/`pyasn1` transitively with their own findings; this app only uses symmetric HS256, which PyJWT supports natively without those extra dependencies. |
 | passlib / bcrypt | 1.7.4 / 4.0.1 | BSD-3-Clause / Apache-2.0 | Phase 1 | Password hashing |
-| python-multipart | 0.0.20 | Apache-2.0 | Phase 1 | Form parsing |
-| python-dotenv | 1.0.1 | BSD-3-Clause | Phase 1 | `.env` loading |
+| python-multipart | 0.0.32 | Apache-2.0 | Phase 1 (bumped Phase 21) | Form parsing |
+| python-dotenv | 1.2.2 | BSD-3-Clause | Phase 1 (bumped Phase 21) | `.env` loading |
 | pandas | >=2.2.3 | BSD-3-Clause | Phase 3 | Data manipulation |
 | numpy | >=1.26.4 | BSD-3-Clause | Phase 3 | Numerical computing |
 | scikit-learn | >=1.5.2 | BSD-3-Clause | Phase 3/6 | ML models, preprocessing, metrics |
 | xgboost | >=2.1.3 | Apache-2.0 | Phase 3/6 | Gradient-boosted classifier |
 | alembic | 1.14.0 | MIT | Phase 1 (unused until Phase 4) | Schema migrations |
-| pytest | 8.3.4 | MIT | Phase 1 | Testing |
+| pytest | 9.0.3 | MIT | Phase 1 (bumped Phase 21) | Testing |
 | httpx | 0.28.1 | BSD-3-Clause | Phase 1 | Test client HTTP support |
 | **yfinance** | **0.2.51** | **Apache-2.0** | **Phase 4** | **Live/cached market data source** |
-| **pyarrow** | **18.1.0** | **Apache-2.0** | **Phase 4** | **Parquet read/write for the local market-data cache** |
+| **pyarrow** | **23.0.1** | **Apache-2.0** | **Phase 4 (bumped Phase 21)** | **Parquet read/write for the local market-data cache** |
 | **matplotlib** | **3.11.2** | **PSF-based (BSD-style, matplotlib's own permissive license)** | **Phase 6** | **Calibration/reliability plot for the ML prediction pipeline** |
 | **feedparser** | **6.0.14** | **BSD-2-Clause** | **Phase 7** | **Parses Economic Times / Moneycontrol RSS feeds for real headline ingestion** |
 | **pyportfolioopt** | **1.6.0** | **MIT** | **Phase 9** | **Min-variance / max-Sharpe / HRP portfolio optimization suggestions** |
@@ -56,6 +56,8 @@ to `requirements.txt` / `package.json`.
 | **docstring-parser** (transitive, via anthropic) | 0.18.0 | MIT | Phase 19 | anthropic SDK dependency |
 | **jiter** (transitive, via anthropic) | 0.17.0 | MIT | Phase 19 | Fast JSON parsing, anthropic SDK dependency |
 | **sniffio** (transitive, via anthropic) | 1.3.1 | MIT OR Apache-2.0 | Phase 19 | Async library detection, anthropic SDK dependency |
+| **slowapi** | 0.1.10 | MIT | Phase 21 | Per-client-IP rate limiting on `/auth/login`, `/auth/register`, and `/assistant/ask` (see `docs/security-review.md`) |
+| **limits** (transitive, via slowapi) | 5.8.0 | MIT | Phase 21 | Rate-limit storage/window backend, slowapi dependency |
 
 All Phase 9 transitive dependencies checked individually — all permissive
 (MIT/Apache-2.0/BSD-3-Clause), no copyleft. None are pinned in
@@ -76,7 +78,7 @@ resolved by pip at install time in this environment.
 | Vite | MIT | Phase 1 | Build tool / dev server |
 | Tailwind CSS | MIT | Phase 1 | Styling |
 | Recharts | MIT | Phase 1 | Charts |
-| React Router | MIT | Phase 1 | Client-side routing |
+| React Router | MIT | Phase 1 (6.28.1 -> 7.18.4 in Phase 21) | Client-side routing. Bumped to 7.18.4 in Phase 21's security review to pick up a fix for an open-redirect finding in `<Link>`/`useNavigate` (GHSA-wrjc-x8rr-h8h6); verified in a real browser (login redirect, all nav links, a nested `:symbol` param route, back-link, and the catch-all redirect) with no console errors. |
 | Axios | MIT | Phase 1 | HTTP client |
 
 ## Pretrained models (not vendored, downloaded at runtime when enabled)
