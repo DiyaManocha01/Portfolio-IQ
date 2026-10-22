@@ -12,6 +12,7 @@ import StockDetailPage from './pages/StockDetailPage';
 import DiscoverPage from './pages/DiscoverPage';
 import PortfolioFitPage from './pages/PortfolioFitPage';
 import IntelligencePage from './pages/IntelligencePage';
+import PortfolioLabPage from './pages/PortfolioLabPage';
 
 export default function App() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="/discover" element={<DiscoverPage />} />
             <Route path="/discover/:symbol" element={<PortfolioFitPage />} />
             <Route path="/intelligence" element={<IntelligencePage />} />
+            <Route path="/portfolio/lab" element={<PortfolioLabPage />} />
           </Route>
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

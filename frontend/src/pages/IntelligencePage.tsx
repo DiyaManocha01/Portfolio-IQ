@@ -9,10 +9,11 @@ import { CorrelationHeatmap } from '../charts/CorrelationHeatmap';
 import { AllocationDonut } from '../charts/AllocationDonut';
 import { colorForIndex } from '../charts/palette';
 import { WeaknessCard } from '../components/WeaknessCard';
-import { formatNumber, formatProbabilityPct, formatSignedPct } from '../utils/format';
+import { formatNumber, formatPct, formatProbabilityPct, formatSignedPct } from '../utils/format';
 
 export default function IntelligencePage() {
   const risk = useAsync(() => portfolioService.getRisk(), []);
+  const attribution = useAsync(() => portfolioService.getRiskAttribution(), []);
   const health = useAsync(() => portfolioService.getHealth(), []);
   const weaknesses = useAsync(() => portfolioService.getWeaknesses(), []);
 
@@ -79,6 +80,60 @@ export default function IntelligencePage() {
               )}
             </Card>
           </>
+        )}
+      </section>
+
+      {/* Risk attribution section */}
+      <section className="space-y-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Risk Attribution</h2>
+        {attribution.loading && <LoadingBlock />}
+        {attribution.error && <ErrorBlock message={attribution.error} onRetry={attribution.reload} />}
+        {attribution.data && attribution.data.attributions.length > 0 && (
+          <Card
+            title="% of Money vs. % of Risk"
+            subtitle="A holding whose risk share is well above its money share is contributing more risk than its position size alone would suggest"
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead>
+                  <tr className="border-b border-base-border text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="pb-2 pr-3 font-medium">Symbol</th>
+                    <th className="pb-2 pr-3 font-medium text-right">Weight %</th>
+                    <th className="pb-2 pr-3 font-medium text-right">Risk %</th>
+                    <th className="pb-2 pr-3 font-medium text-right">Concentration Ratio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attribution.data.attributions.map((a) => {
+                    const ratioTone =
+                      a.risk_concentration_ratio >= 1.3
+                        ? 'text-negative'
+                        : a.risk_concentration_ratio <= 0.8
+                          ? 'text-positive'
+                          : 'text-slate-200';
+                    return (
+                      <tr key={a.symbol} className="border-b border-base-border/60 last:border-0">
+                        <td className="py-2.5 pr-3">
+                          <div className="font-semibold text-slate-100">{a.symbol}</div>
+                          <div className="text-xs text-slate-500">{a.sector}</div>
+                        </td>
+                        <td className="py-2.5 pr-3 text-right text-slate-300">{formatPct(a.weight_pct)}</td>
+                        <td className="py-2.5 pr-3 text-right text-slate-300">{formatPct(a.risk_contribution_pct)}</td>
+                        <td className={`py-2.5 pr-3 text-right font-semibold ${ratioTone}`}>
+                          {formatNumber(a.risk_concentration_ratio, 2)}x
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-[11px] text-slate-500">
+              Ratio &gt; 1 means a holding contributes disproportionately more risk than its money weight;
+              &lt; 1 means less. Portfolio annualized volatility:{' '}
+              {formatProbabilityPct(attribution.data.portfolio_annualized_volatility)}.
+            </p>
+          </Card>
         )}
       </section>
 

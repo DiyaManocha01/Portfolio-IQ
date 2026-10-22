@@ -1,10 +1,14 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAsync } from '../hooks/useAsync';
 import * as discoverService from '../services/discover';
+import * as stockService from '../services/stocks';
 import { Card } from '../components/Card';
 import { ErrorBlock, LoadingBlock } from '../components/States';
 import { HorizontalBarChart } from '../charts/HorizontalBarChart';
 import { colorForIndex } from '../charts/palette';
+import { getErrorMessage } from '../services/api';
+import type { FitCounterfactual, FitRankingGap } from '../types/api';
 
 export default function PortfolioFitPage() {
   const { symbol = '' } = useParams();
@@ -98,8 +102,267 @@ export default function PortfolioFitPage() {
               ))}
             </div>
           </Card>
+
+          <CompareSection symbol={fit.data.symbol} />
+          <CounterfactualSection symbol={fit.data.symbol} />
         </>
       )}
     </div>
+  );
+}
+
+function CompareSection({ symbol }: { symbol: string }) {
+  const stocks = useAsync(() => stockService.getStocks(), []);
+  const [otherSymbol, setOtherSymbol] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<FitRankingGap | null>(null);
+
+  async function handleCompare() {
+    if (!otherSymbol) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await discoverService.compareFit(symbol, otherSymbol);
+      setResult(r);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card title="Compare to Another Stock" subtitle="See which fit factors explain the score gap between two candidates">
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-400">Compare against</label>
+          {stocks.data && (
+            <select
+              value={otherSymbol}
+              onChange={(e) => setOtherSymbol(e.target.value)}
+              className="rounded-lg border border-base-border bg-base-surface2 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand-500"
+            >
+              <option value="">Select a stock…</option>
+              {stocks.data
+                .filter((s) => s.symbol !== symbol)
+                .map((s) => (
+                  <option key={s.symbol} value={s.symbol}>
+                    {s.symbol} — {s.name}
+                  </option>
+                ))}
+            </select>
+          )}
+        </div>
+        <button
+          onClick={handleCompare}
+          disabled={!otherSymbol || loading}
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
+        >
+          {loading ? 'Comparing…' : 'Compare'}
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-4">
+          <ErrorBlock message={error} onRetry={handleCompare} />
+        </div>
+      )}
+
+      {result && (
+        <div className="mt-5 space-y-4">
+          <div className="flex items-center gap-6">
+            <div>
+              <p className="text-xs text-slate-500">{result.symbol_a}</p>
+              <p className="text-2xl font-bold text-brand-400">{result.fit_score_a.toFixed(1)}</p>
+            </div>
+            <div className="text-slate-500">vs.</div>
+            <div>
+              <p className="text-xs text-slate-500">{result.symbol_b}</p>
+              <p className="text-2xl font-bold text-slate-300">{result.fit_score_b.toFixed(1)}</p>
+            </div>
+          </div>
+
+          {result.term_deltas.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] text-sm">
+                <thead>
+                  <tr className="border-b border-base-border text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="pb-2 pr-3 font-medium">Factor</th>
+                    <th className="pb-2 pr-3 font-medium text-right">{result.symbol_a}</th>
+                    <th className="pb-2 pr-3 font-medium text-right">{result.symbol_b}</th>
+                    <th className="pb-2 pr-3 font-medium text-right">Delta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.term_deltas.map((t) => (
+                    <tr key={t.term} className="border-b border-base-border/60 last:border-0">
+                      <td className="py-2.5 pr-3 text-slate-200">{t.name}</td>
+                      <td className="py-2.5 pr-3 text-right text-slate-300">{t.contribution_a.toFixed(2)}</td>
+                      <td className="py-2.5 pr-3 text-right text-slate-300">{t.contribution_b.toFixed(2)}</td>
+                      <td className={`py-2.5 pr-3 text-right font-semibold ${t.delta >= 0 ? 'text-positive' : 'text-negative'}`}>
+                        {t.delta >= 0 ? '+' : ''}
+                        {t.delta.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p className="text-[11px] text-slate-500">{result.note}</p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function CounterfactualSection({ symbol }: { symbol: string }) {
+  const stocks = useAsync(() => stockService.getStocks(), []);
+  const [mode, setMode] = useState<'symbol' | 'score'>('symbol');
+  const [targetSymbol, setTargetSymbol] = useState('');
+  const [targetScore, setTargetScore] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<FitCounterfactual | null>(null);
+
+  async function handleRun() {
+    setError(null);
+    if (mode === 'symbol') {
+      if (!targetSymbol) {
+        setError('Choose a target stock to match.');
+        return;
+      }
+    } else {
+      const score = Number(targetScore);
+      if (!targetScore || Number.isNaN(score)) {
+        setError('Enter a valid target fit score.');
+        return;
+      }
+    }
+    setLoading(true);
+    try {
+      const r =
+        mode === 'symbol'
+          ? await discoverService.getFitCounterfactual(symbol, { targetSymbol })
+          : await discoverService.getFitCounterfactual(symbol, { targetScore: Number(targetScore) });
+      setResult(r);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card
+      title="What Would Improve This Fit?"
+      subtitle="Ceteris-paribus scenarios: how much a single factor would need to change, holding all others fixed"
+    >
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setMode('symbol')}
+            className={`rounded-lg px-3 py-2 text-xs font-medium transition ${
+              mode === 'symbol' ? 'bg-brand-600 text-white' : 'bg-base-surface2 text-slate-400'
+            }`}
+          >
+            Match another stock
+          </button>
+          <button
+            onClick={() => setMode('score')}
+            className={`rounded-lg px-3 py-2 text-xs font-medium transition ${
+              mode === 'score' ? 'bg-brand-600 text-white' : 'bg-base-surface2 text-slate-400'
+            }`}
+          >
+            Reach a target score
+          </button>
+        </div>
+
+        {mode === 'symbol' && stocks.data && (
+          <select
+            value={targetSymbol}
+            onChange={(e) => setTargetSymbol(e.target.value)}
+            className="rounded-lg border border-base-border bg-base-surface2 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand-500"
+          >
+            <option value="">Select a stock…</option>
+            {stocks.data
+              .filter((s) => s.symbol !== symbol)
+              .map((s) => (
+                <option key={s.symbol} value={s.symbol}>
+                  {s.symbol} — {s.name}
+                </option>
+              ))}
+          </select>
+        )}
+
+        {mode === 'score' && (
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="any"
+            placeholder="e.g. 75"
+            value={targetScore}
+            onChange={(e) => setTargetScore(e.target.value)}
+            className="w-28 rounded-lg border border-base-border bg-base-surface2 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand-500"
+          />
+        )}
+
+        <button
+          onClick={handleRun}
+          disabled={loading}
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
+        >
+          {loading ? 'Computing…' : 'Run'}
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-4">
+          <ErrorBlock message={error} onRetry={handleRun} />
+        </div>
+      )}
+
+      {result && (
+        <div className="mt-5 space-y-4">
+          {result.already_meets_target ? (
+            <p className="rounded-lg border border-positive/30 bg-positive-bg px-3 py-2 text-sm text-positive">
+              {symbol} already meets the target ({result.target}).
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead>
+                  <tr className="border-b border-base-border text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="pb-2 pr-3 font-medium">Factor</th>
+                    <th className="pb-2 pr-3 font-medium text-right">Current</th>
+                    <th className="pb-2 pr-3 font-medium text-right">Required Change (z)</th>
+                    <th className="pb-2 pr-3 font-medium text-right">Target Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.term_scenarios.map((s) => (
+                    <tr key={s.term} className="border-b border-base-border/60 last:border-0">
+                      <td className="py-2.5 pr-3 text-slate-200">{s.name}</td>
+                      <td className="py-2.5 pr-3 text-right text-slate-300">{s.current_raw_value.toFixed(2)}</td>
+                      <td className="py-2.5 pr-3 text-right text-slate-300">
+                        {s.required_z_delta >= 0 ? '+' : ''}
+                        {s.required_z_delta.toFixed(2)}
+                      </td>
+                      <td className="py-2.5 pr-3 text-right font-semibold text-brand-400">
+                        {s.target_raw_value !== null ? s.target_raw_value.toFixed(2) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="text-[11px] text-slate-500">{result.note}</p>
+        </div>
+      )}
+    </Card>
   );
 }

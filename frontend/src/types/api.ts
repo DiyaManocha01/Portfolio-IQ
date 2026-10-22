@@ -267,3 +267,135 @@ export interface StockAnalysis {
   series: AnalysisPoint[];
   disclaimer: string;
 }
+
+// --- Phase 14: Risk Attribution ---
+
+export interface RiskAttributionItem {
+  symbol: string;
+  name: string;
+  sector: string;
+  weight_pct: number;
+  risk_contribution_pct: number;
+  marginal_contribution_to_vol: number;
+  risk_concentration_ratio: number;
+}
+
+export interface PortfolioRiskAttribution {
+  portfolio_annualized_volatility: number;
+  attributions: RiskAttributionItem[];
+  data_source: 'DEV_SAMPLE' | 'LIVE';
+}
+
+// --- Phase 9: Portfolio Optimization ---
+
+export type OptimizationMethod = 'min_variance' | 'max_sharpe' | 'risk_parity';
+
+export interface OptimizationAllocation {
+  symbol: string;
+  current_weight_pct: number;
+  suggested_weight_pct: number;
+  delta_pct: number;
+}
+
+export interface PortfolioOptimization {
+  method: OptimizationMethod;
+  feasible: boolean;
+  note: string | null;
+  allocations: OptimizationAllocation[];
+  expected_annual_return: number;
+  expected_annual_volatility: number;
+  expected_sharpe_ratio: number;
+  risk_free_rate_assumed: number;
+  lookback_days: number;
+  data_source: 'DEV_SAMPLE' | 'LIVE';
+  disclaimer: string;
+}
+
+// --- Phase 11: What-If Simulator ---
+
+export interface WhatIfChange {
+  symbol: string;
+  new_quantity: number;
+}
+
+export interface WhatIfMetrics {
+  annualized_volatility: number;
+  sharpe_ratio: number;
+  var_95: number;
+  cvar_95: number;
+  var_99: number;
+  cvar_99: number;
+  diversification_ratio: number;
+  hhi_holdings: number;
+}
+
+export interface TradeCost {
+  brokerage: number;
+  stt: number;
+  stamp_duty: number;
+  exchange_charges: number;
+  sebi_fee: number;
+  gst: number;
+  total: number;
+}
+
+export interface WhatIfTrade {
+  symbol: string;
+  quantity_delta: number;
+  trade_value: number;
+  action: 'buy' | 'sell';
+  estimated_cost: TradeCost | null;
+}
+
+export interface WhatIfResult {
+  before: WhatIfMetrics;
+  after: WhatIfMetrics;
+  deltas: Record<string, number>;
+  trades: WhatIfTrade[];
+  total_estimated_cost: number | null;
+  risk_free_rate_assumed: number;
+  lookback_days: number;
+  data_source: 'DEV_SAMPLE' | 'LIVE';
+  disclaimer: string;
+}
+
+// --- Phase 16: Fit Engine counterfactuals ---
+
+export type FitPreset = 'balanced' | 'risk_averse' | 'growth_seeking';
+
+export interface FitTermDelta {
+  term: string;
+  name: string;
+  contribution_a: number;
+  contribution_b: number;
+  delta: number;
+}
+
+export interface FitRankingGap {
+  symbol_a: string;
+  symbol_b: string;
+  fit_score_a: number;
+  fit_score_b: number;
+  logit_gap: number;
+  term_deltas: FitTermDelta[];
+  preset: string;
+  note: string;
+}
+
+export interface FitTermScenario {
+  term: string;
+  name: string;
+  current_raw_value: number;
+  required_z_delta: number;
+  required_raw_delta: number | null;
+  target_raw_value: number | null;
+}
+
+export interface FitCounterfactual {
+  symbol: string;
+  fit_score: number;
+  target: string;
+  already_meets_target: boolean;
+  term_scenarios: FitTermScenario[];
+  note: string;
+}

@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/stocks', label: 'Stocks', icon: StocksIcon },
   { to: '/discover', label: 'Discover', icon: DiscoverIcon },
   { to: '/intelligence', label: 'Portfolio Intelligence', icon: IntelligenceIcon },
+  { to: '/portfolio/lab', label: 'Portfolio Lab', icon: LabIcon },
 ];
 
 export function AppLayout() {
@@ -165,6 +166,13 @@ function IntelligenceIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...iconBase(props)}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3a6 6 0 00-3.6 10.8c.5.4.8 1 .8 1.7v.3h5.6v-.3c0-.7.3-1.3.8-1.7A6 6 0 0012 3z" />
+    </svg>
+  );
+}
+function LabIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...iconBase(props)}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v7.5L4.5 18a1.5 1.5 0 001.3 2.25h12.4a1.5 1.5 0 001.3-2.25L15 10.5V3M9 3h6M9 14h6" />
     </svg>
   );
 }
