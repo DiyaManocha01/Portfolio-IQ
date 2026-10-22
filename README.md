@@ -39,6 +39,12 @@ docs/          ARCHITECTURE.md  ROADMAP.md  API_CONTRACT.md  PORTFOLIO_SCORING.m
 - Node.js 18+ (this project was built/tested on Node 22)
 - PostgreSQL 14+ running locally
 
+**Or skip all of the above and run the full stack with Docker Compose**
+(`docker compose up --build` — see `docs/DEPLOYMENT.md` for setup and,
+importantly, what has and hasn't actually been verified end-to-end).
+The manual steps below are still the better path while actively
+developing (faster iteration, no rebuild step).
+
 ## 1. Database setup
 
 ```bash

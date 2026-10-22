@@ -110,6 +110,12 @@ cd frontend
 npm install
 cp .env.example .env
 npm run dev
+
+# Or: full stack via Docker Compose (Phase 22) -- see docs/DEPLOYMENT.md
+# for what's verified vs. not from this project's own sandbox
+cp .env.example .env
+cp backend/.env.example backend/.env
+docker compose up --build
 ```
 
 Demo login: `demo@portfolioiq.app` / `demo1234`.
@@ -120,4 +126,6 @@ Demo login: `demo@portfolioiq.app` / `demo1234`.
 - `docs/limitations.md` — known limitations, extended as found
 - `docs/adr/` — architecture decision records, one per decision that changes or supersedes earlier behavior
 - `docs/open-source-inventory.md` — dependency/license ledger (source of truth; `THIRD_PARTY_LICENSES.md` is the older narrative version)
+- `docs/security-review.md` — Phase 21 dependency audit + auth rate limiting, what was fixed vs. deferred and why
+- `docs/DEPLOYMENT.md` — Phase 22 Docker Compose setup, what's verified vs. not from this project's sandbox
 - `docs/PORTFOLIO_SCORING.md`, `docs/ARCHITECTURE.md`, `docs/API_CONTRACT.md`, `docs/ROADMAP.md` — pre-Phase-4 docs from the original MVP build; still accurate for what they describe, superseded incrementally as phases land

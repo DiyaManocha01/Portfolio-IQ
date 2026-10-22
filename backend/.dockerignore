@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.env
+app/data/models/*.joblib
+app/data/models/*.json
+app/data/models/*.png
+app/data/cache/*.parquet
+app/data/cache/cache_manifest.json
+app/data/news_cache/
+app/data/finbert_eval_results.csv
+app/data/backtests/
+app/data/.seeded
+.git/

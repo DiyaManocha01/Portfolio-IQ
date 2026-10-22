@@ -6,6 +6,7 @@ backend/__pycache__/
 .pytest_cache/
 
 # Env
+.env
 backend/.env
 frontend/.env
 

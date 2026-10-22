@@ -475,10 +475,36 @@ UI, the methodology doc, or a future paper, it's listed here.
 
 ## Infrastructure
 
-- **No Docker / deployment setup yet** (Phase 22).
 - **Alembic only has one migration (the baseline)** as of Phase 4 — schema
   changes in later phases must each add a proper migration, not assume
   `create_all` ever runs again (it's been removed from `seed.py`).
+
+## Deployment (Phase 22)
+
+- **Docker Compose setup added, but full `docker compose up` has not
+  been run end-to-end from this project's own development sandbox.**
+  Both Dockerfiles pass `docker build --check` and `docker compose
+  config` was inspected by hand (catching and fixing a real
+  `backend/.env.example` parsing bug along the way — see
+  `docs/DEPLOYMENT.md`), but this sandbox's containers cannot complete
+  outbound HTTPS to PyPI/npm (verified: `CERTIFICATE_VERIFY_FAILED` —
+  this sandbox's egress performs TLS interception that the host trusts
+  via tooling not present inside a fresh container) and separately hit
+  intermittent Docker Hub pull rate-limiting. A one-off, not-committed
+  variant of the backend Dockerfile with the sandbox's CA temporarily
+  trusted was used to get real signal on whether `pip install -r
+  requirements.txt` actually resolves against the full pinned dependency
+  set — see `docs/DEPLOYMENT.md`'s "What has (and has not) been
+  verified" section for the result. **The project owner should run
+  `docker compose up --build` once on a normal machine** before relying
+  on this for a demo.
+- **No production hardening** (TLS/reverse proxy, secrets manager,
+  resource limits, log aggregation, multi-replica orchestration) — this
+  is a local/demo Compose setup, stated plainly as such in
+  `docs/DEPLOYMENT.md`.
+- **The Phase 21 rate limiter's in-memory storage does not span multiple
+  backend replicas** — a non-issue for this single-`backend`-container
+  Compose setup, a real gap for any scaled deployment.
 
 ## Testing & Security (Phase 21)
 
