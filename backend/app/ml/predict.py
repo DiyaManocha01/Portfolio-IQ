@@ -24,7 +24,7 @@ from datetime import date, datetime, timezone
 import joblib
 from sqlalchemy.orm import Session
 
-from app.ml import shap_explain
+from app.ml import prediction_ledger, shap_explain
 from app.ml.features import FEATURE_COLUMNS, build_feature_frame
 from app.ml.train import MODEL_PATH, load_metadata
 from app.models.prediction import Confidence, Direction, Prediction
@@ -123,6 +123,7 @@ class PredictionService:
             )
             .first()
         )
+        is_new_prediction = existing is None
         if existing:
             existing.direction = direction
             existing.probability = probability
@@ -144,6 +145,14 @@ class PredictionService:
             self.db.add(prediction)
         self.db.commit()
         self.db.refresh(prediction)
+
+        # Phase 18: append to the public, hash-chained ledger -- but only
+        # the FIRST time today's prediction for this (stock, model) is
+        # made, not on every subsequent cached read/recompute of the same
+        # day's prediction (append_prediction_entry also independently
+        # guards against duplicates, this just avoids the redundant call).
+        if is_new_prediction:
+            prediction_ledger.append_prediction_entry(self.db, stock, prediction)
         # Transient (NOT persisted/mapped) attribute: the full per-feature
         # SHAP breakdown, for the API route to expose. Not stored in the DB
         # -- recomputed fresh (cheaply, see shap_explain.py) on every call

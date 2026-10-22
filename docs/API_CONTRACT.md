@@ -425,6 +425,51 @@ target and `term_scenarios` is empty (nothing to compute). Each scenario
 is independent of the others -- never sum or combine `required_raw_delta`
 values across terms as if they were a joint plan.
 
+## Prediction Ledger (Phase 18, PUBLIC -- no auth required)
+
+The first unauthenticated data surface in this app -- the whole point of
+a public track record is third-party verifiability without an account.
+
+### GET /ledger/entries?symbol=&limit=50&offset=0
+```json
+[{
+  "id": 42, "entry_type": "prediction" | "resolution",
+  "previous_hash": "a1b2...", "entry_hash": "c3d4...",
+  "created_at": "2026-10-22T10:00:00Z",
+  "stock_id": 1, "symbol": "TCS", "model_name": "logistic_regression", "model_version": "6a16cbbc7b76",
+  "direction": "POSITIVE", "probability": 0.62, "confidence": "MEDIUM", "prediction_date": "2026-10-22",
+  "resolves_entry_id": null, "realized_direction": null, "realized_return": null
+}]
+```
+`"resolution"` entries have `direction`/`probability`/etc. `null` and
+`resolves_entry_id`/`realized_direction`/`realized_return` populated
+instead. `limit` max 500.
+
+### GET /ledger/verify
+```json
+{ "valid": true, "total_entries": 27, "first_broken_entry_id": null, "reason": null }
+```
+Recomputes every entry's hash from its own stored payload and checks the
+whole chain. `valid: false` names the first entry where it broke.
+
+### GET /ledger/track-record
+```json
+{
+  "total_predictions": 27, "resolved_count": 3, "pending_count": 24,
+  "directional_predictions_resolved": 2, "directional_hit_rate": 1.0,
+  "paper_trading": {
+    "n_resolved_positions": 3, "cumulative_return": 0.05, "sharpe_ratio_unannualized": 0.707,
+    "note": "Long when the prediction was POSITIVE, flat otherwise -- same strategy definition as Phase 13's backtest, but computed here from real, already-made, append-only predictions rather than a retrospective walk-forward simulation."
+  },
+  "note": "This track record grows only from genuinely new predictions made since Phase 18 shipped -- no history has been backdated or fabricated. A thin or empty record reflects how new this ledger is, not a data gap.",
+  "disclaimer": "Historical track record only, computed from real recorded predictions. Not a guarantee of future performance and not financial advice."
+}
+```
+`directional_hit_rate` excludes `NEUTRAL` predictions (not a directional
+bet) -- always read alongside `directional_predictions_resolved`.
+ALWAYS render the disclaimer and the "thin record" note together; never
+present a small sample as if it were a mature track record.
+
 ## Error shape
 FastAPI default: `{ "detail": "message" }` with 401/404/400/503 status codes as appropriate. 503 specifically means the ML model hasn't been trained yet (won't happen against the seeded demo DB).
 

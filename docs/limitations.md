@@ -390,6 +390,44 @@ UI, the methodology doc, or a future paper, it's listed here.
   predictive value, not necessarily a "genuinely important" signal in any
   market sense.
 
+## Verified Public Track Record (Phase 18)
+
+- **Tamper-EVIDENT, not tamper-PROOF.** The hash chain + DB trigger
+  combination detects alteration by an application bug or unprivileged
+  access, and was directly tested against a simulated privileged tamper
+  (trigger disabled, raw SQL edit) -- caught every time. But someone with
+  full database administrator access could still truncate the whole
+  table and start a fresh chain from scratch, and nothing inside this
+  system would detect that from outside the database itself. A genuinely
+  tamper-proof public record needs external anchoring (periodically
+  publishing the latest hash somewhere outside this project's own
+  control) -- explicitly out of scope for this phase.
+- **The ledger starts nearly empty.** No history has been backdated or
+  fabricated. A thin or all-pending track record reflects how new the
+  ledger is, not a data gap or a bug -- stated directly in the
+  `/ledger/track-record` API response itself, not only here.
+- **Resolution uses cached OHLCV data**, which for this project's
+  default `DEV_SAMPLE` mode is synthetic. A resolved "outcome" against
+  synthetic data confirms the resolution mechanism works correctly; it
+  is not a real market outcome. Must be re-evaluated once real NIFTY
+  cache data is the default.
+- **Resolution is lazy** (triggered by `/ledger/verify` and
+  `/ledger/track-record` calls catching up pending entries), not a
+  scheduled job -- there's no cron infrastructure in this environment. A
+  real deployment would run `resolve_due_entries()` on a daily schedule
+  instead; documented as a simplification, not hidden.
+- **The directional hit rate excludes `NEUTRAL` predictions** from its
+  denominator (they aren't a directional bet) -- a `NEUTRAL`-heavy model
+  will show a hit rate computed over a small subset of its total
+  predictions, which must be read alongside `directional_predictions_resolved`,
+  not in isolation.
+- **Paper trading has no position sizing, transaction costs, or
+  compounding assumptions beyond simple chronological compounding** --
+  it is a direct measurement tool for the recorded predictions, not a
+  realistic trading simulation (Phase 11's What-If Simulator and Phase 13's
+  backtest separately model transaction costs and realistic position
+  sizing for their own, different purposes).
+
 ## Infrastructure
 
 - **No Docker / deployment setup yet** (Phase 22).

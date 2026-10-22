@@ -1148,7 +1148,80 @@ feature row): `["Exponential moving average trend", "5-day momentum",
 identical), confirming this is per-prediction, not a relabeled static
 list.
 
+## 15. Verified Public Track Record (Phase 18)
+
+Implemented in `backend/app/ml/prediction_ledger.py` and
+`backend/app/models/prediction_ledger.py`. New, deliberately
+UNAUTHENTICATED endpoints: `GET /ledger/entries`, `GET /ledger/verify`,
+`GET /ledger/track-record`. See `docs/adr/0007-prediction-ledger.md`.
+
+### 15.1 Hash chain
+
+Every entry's `entry_hash = sha256(previous_entry_hash + canonical_json(payload))`.
+`GET /ledger/verify` walks every entry in insertion order, recomputes
+each hash from its own stored payload, and checks it against what's
+stored -- any alteration of any past entry's payload breaks the chain
+from that point forward, which is what "tamper-evident" means
+concretely here. Demonstrated directly, not just claimed: disabling the
+DB trigger and corrupting a stored field with raw SQL (simulating
+privileged access) was caught by `verify_chain()` every time it was
+tested.
+
+### 15.2 Two entry kinds, one append-only table
+
+- **`"prediction"`** entries: appended by `predict_for_stock()` the
+  first time a (stock, model, day) prediction is genuinely made --
+  verified NOT to double-append on repeated same-day reads.
+- **`"resolution"`** entries: appended once a prediction's real outcome
+  becomes knowable (the next trading day's close exists in the cache),
+  linked via `resolves_entry_id`. **The original prediction entry is
+  never edited** -- an outcome is always a new chain entry, which is
+  what makes "insert-only" true without exception, not an update in
+  disguise.
+
+A Postgres trigger (added in the table's own Alembic migration) rejects
+any `UPDATE` or `DELETE` against `prediction_ledger` at the database
+level -- not just an application-code promise.
+
+### 15.3 Resolution: never guessed
+
+`resolve_due_entries()` only resolves a prediction once BOTH its own
+day's close price AND the next trading day's close price already exist
+in the cache. `realized_return = close_next / close_pred_date - 1`;
+`realized_direction` is `"UP"`/`"DOWN"`/`"FLAT"` by strict sign --
+deliberately a different vocabulary from the model's own
+`POSITIVE`/`NEGATIVE`/`NEUTRAL` direction, to keep "what the model
+predicted" and "what actually happened" visually distinct everywhere
+they appear together.
+
+### 15.4 Track record: hit rate + genuine forward paper-trading
+
+`GET /ledger/track-record` reports:
+- **Directional hit rate**: among resolved `POSITIVE`/`NEGATIVE`
+  predictions only (`NEUTRAL` isn't a directional bet, excluded from
+  this specific ratio, its own frequency still visible in the raw entry
+  list).
+- **Paper trading**: long when the prediction was `POSITIVE`, flat
+  otherwise -- the SAME strategy definition as Phase 13's backtest, but
+  computed here from real, already-made, immutable predictions in
+  chronological order, not a retrospective walk-forward simulation. This
+  is the key distinction between Phase 13 and Phase 18: Phase 13 asks
+  "how would this methodology have performed historically if replayed
+  honestly"; Phase 18 asks "how has the actually-deployed model's
+  real, dated, unchangeable output performed since it started being
+  recorded." Different questions, deliberately not conflated.
+
+### 15.5 Starting point: honestly thin
+
+As of this phase shipping, the ledger contains only whatever predictions
+have genuinely been made since -- no history has been backdated or
+fabricated to make the track record look more established. Both the
+`/ledger/track-record` response and this document say so directly. A
+near-empty or all-pending track record on a freshly deployed instance is
+the CORRECT, honest state, not a bug to paper over.
+
 ---
 
-*(Sections 15+ — the prediction ledger design — are added as each
-corresponding phase is implemented, not written in advance.)*
+*(Sections 16+ — the AI assistant, UI/UX polish, testing/security,
+deployment, and final documentation — are added as each corresponding
+phase is implemented, not written in advance.)*

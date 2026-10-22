@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, discover, portfolio, portfolio_fit, stocks
+from app.api.routes import auth, discover, ledger, portfolio, portfolio_fit, stocks
 from app.config import settings
 
 app = FastAPI(
@@ -27,6 +27,7 @@ app.include_router(portfolio.router)
 app.include_router(stocks.router)
 app.include_router(discover.router)
 app.include_router(portfolio_fit.router)
+app.include_router(ledger.router)
 
 
 @app.get("/")
