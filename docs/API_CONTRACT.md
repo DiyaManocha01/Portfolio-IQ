@@ -1,4 +1,11 @@
-# PortfolioIQ Backend API Contract (v0.1 - MVP)
+# PortfolioIQ Backend API Contract
+
+Current through Phase 19 (the last phase to add a new endpoint; Phases
+20-22 added frontend UI, tests/security, and deployment without changing
+this contract). Every shape below is what the code actually returns, not
+an aspirational spec — see `docs/methodology.md` for the formula behind
+each field and `docs/limitations.md` for what each number does and
+doesn't mean.
 
 Base URL (local dev): `http://localhost:8000`
 
