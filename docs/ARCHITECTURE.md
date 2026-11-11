@@ -44,6 +44,8 @@ backend/
       analytics.py           # stock analytics (SMA/EMA/RSI/MACD/volatility/beta)
       portfolio_calc.py      # holding P&L + portfolio aggregation + performance series
       news_service.py        # news generation + sentiment orchestration
+      screener_service.py    # fundamental + technical stock screener (Phase 26)
+      alert_service.py       # alert rule evaluation dispatcher + dedup (Phase 27)
       market_data/
         providers.py         # MarketDataProvider abstraction (DevSample + LiveYFinance)
         service.py            # MarketDataService: caching layer over a provider
@@ -98,7 +100,7 @@ backend/
   docker-entrypoint.sh         # migrate -> seed/train (once) -> uvicorn (Phase 22)
 ```
 
-## Database schema (14 tables)
+## Database schema (16 tables)
 
 `users` -> `user_profiles` (1:1), `users` -> `portfolios` (1:many) ->
 `holdings` / `transactions` / `portfolio_scores`. `holdings`/`transactions`
@@ -110,14 +112,16 @@ stands somewhat apart from the rest: it is intentionally written once and
 never updated. `intraday_candles` is a separate table from `market_data`
 (unique on `(stock_id, timestamp)` rather than `market_data`'s
 `(stock_id, date)`) — see ADR 0008 for why it isn't a widened
-`market_data`.
+`market_data`. `users` -> `alert_rules` (1:many, Phase 27) -> `alert_events`
+(1:many) -- one generic rule table covering all 8 alert types via a
+`rule_type` enum rather than eight near-identical tables, see ADR 0010.
 
 See `backend/app/models/*.py` for exact columns; relationships use
 SQLAlchemy 2.0 typed `Mapped[...]` declarations with cascading deletes.
 Schema changes go through Alembic (`backend/alembic/`) as of Phase 4 —
 `Base.metadata.create_all()` is no longer used anywhere.
 
-## API routes (10 route modules)
+## API routes (11 route modules)
 
 | Module | Mounted at | Auth | Notes |
 |---|---|---|---|
@@ -130,6 +134,7 @@ Schema changes go through Alembic (`backend/alembic/`) as of Phase 4 —
 | `assistant.py` | `/assistant` | required | rate-limited (Phase 21) |
 | `market.py` | `/market`, `/ws/market` | required (JWT as `?token=` on the WS) | status poll, intraday candles, push feed (Phase 24/25) |
 | `screener.py` | `/screener` | **none** | fundamental + technical stock screener (Phase 26) |
+| `alerts.py` | `/alerts` | required | configurable alert rules + triggered events, user-scoped (Phase 27) |
 
 Full request/response shapes: `API_CONTRACT.md`.
 
@@ -223,6 +228,7 @@ frontend/src/
                  #   Dashboard, Portfolio, Market (Phase 25), Stocks,
                  #   StockDetail (+ live price/intraday chart, Phase 25;
                  #   + Fundamentals tab, Phase 26), Screener (Phase 26),
+                 #   Alerts (rule builder + triggered-event feed, Phase 27),
                  #   Discover, Intelligence (risk + risk attribution),
                  #   PortfolioFit (+ compare/counterfactual, Phase 20),
                  #   PortfolioLab (What-If + Optimization tabs, Phase 20)
@@ -238,9 +244,9 @@ frontend/src/
   test/          # Vitest setup (Phase 21)
 ```
 
-50 Vitest + React Testing Library tests cover `utils/format.ts`,
+55 Vitest + React Testing Library tests cover `utils/format.ts`,
 `useMarketFeed`, and smoke-level rendering (loading/error/data states,
-form submission) of the Phase 20, 25, and 26 UI.
+form submission) of the Phase 20, 25, 26, and 27 UI.
 
 ## Security (Phase 21)
 

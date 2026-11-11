@@ -505,3 +505,53 @@ export interface ScreenerFilters {
   rsi_max?: number;
   momentum_10d_min?: number;
 }
+
+// --- Phase 27: Alerts & Notifications ---
+
+export type AlertRuleType =
+  | 'PRICE_THRESHOLD'
+  | 'PRICE_PCT_MOVE'
+  | 'VOLUME_SPIKE'
+  | 'RSI_THRESHOLD'
+  | 'SENTIMENT_CHANGE'
+  | 'PORTFOLIO_VOLATILITY_CHANGE'
+  | 'SECTOR_CONCENTRATION_CHANGE'
+  | 'FIT_RANKING_CHANGE';
+
+export type AlertDirection = 'ABOVE' | 'BELOW';
+
+export interface AlertRuleOut {
+  id: number;
+  rule_type: AlertRuleType;
+  symbol: string | null;
+  direction: AlertDirection | null;
+  threshold: number;
+  enabled: boolean;
+  last_value: number | null;
+  last_evaluated_at: string | null;
+  last_fired_at: string | null;
+  created_at: string;
+}
+
+export interface AlertRuleCreate {
+  rule_type: AlertRuleType;
+  symbol?: string;
+  direction?: AlertDirection;
+  threshold: number;
+}
+
+export interface AlertRuleUpdate {
+  enabled?: boolean;
+  threshold?: number;
+}
+
+export interface AlertEventOut {
+  id: number;
+  rule_id: number;
+  rule_type: AlertRuleType;
+  symbol: string | null;
+  triggered_at: string;
+  value: number;
+  message: string;
+  is_read: boolean;
+}

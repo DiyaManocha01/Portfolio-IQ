@@ -598,6 +598,48 @@ the token is missing or invalid. Multiple connected clients share one
 upstream broker connection server-side -- see
 `docs/adr/0008-realtime-market-data-angelone.md`.
 
+## Alerts (Phase 27, requires auth -- unlike `/stocks/*` and `/screener`)
+
+### POST /alerts/rules
+```json
+{ "rule_type": "PRICE_THRESHOLD", "symbol": "RELIANCE", "direction": "ABOVE", "threshold": 2900 }
+```
+`symbol` is required for stock-scoped types (`PRICE_THRESHOLD`,
+`PRICE_PCT_MOVE`, `VOLUME_SPIKE`, `RSI_THRESHOLD`, `SENTIMENT_CHANGE`,
+`FIT_RANKING_CHANGE`) and rejected (422) for portfolio-level types
+(`PORTFOLIO_VOLATILITY_CHANGE`, `SECTOR_CONCENTRATION_CHANGE`).
+`direction` (`ABOVE`/`BELOW`) is required for `PRICE_THRESHOLD` and
+`RSI_THRESHOLD` only, and rejected (422) for every other type, whose
+`threshold` is a magnitude, not a side. Returns `201` with:
+```json
+{
+  "id": 1, "rule_type": "PRICE_THRESHOLD", "symbol": "RELIANCE", "direction": "ABOVE",
+  "threshold": 2900, "enabled": true, "last_value": null,
+  "last_evaluated_at": null, "last_fired_at": null, "created_at": "2026-11-11T09:00:00Z"
+}
+```
+
+### GET /alerts/rules -> list of the above, for the current user only
+### PATCH /alerts/rules/{id} `{ "enabled": false }` or `{ "threshold": 3000 }` -> updated rule
+### DELETE /alerts/rules/{id} -> 204
+
+### POST /alerts/evaluate
+Evaluates every enabled rule the current user owns right now and
+returns only the ones that actually fired (usually `[]` -- see ADR 0010
+for exactly why most evaluations fire nothing). The same evaluation also
+runs automatically roughly every 30 seconds while the backend process is
+up (piggybacking on the Phase 24 background loop, no new scheduler).
+```json
+[{ "id": 10, "rule_id": 1, "rule_type": "PRICE_THRESHOLD", "symbol": "RELIANCE",
+   "triggered_at": "2026-11-11T09:30:00Z", "value": 2905.3,
+   "message": "RELIANCE crossed above ₹2900.00 (now ₹2905.30)", "is_read": false }]
+```
+Every event's `message` explains what happened in plain language --
+never a bare number.
+
+### GET /alerts/events?unread_only=false&limit=50 -> list of events (same shape), newest first, for the current user's rules only
+### POST /alerts/events/{id}/read -> marks it read, returns the updated event
+
 ## Error shape
 FastAPI default: `{ "detail": "message" }` with 401/404/400/503 status codes as appropriate. 503 specifically means the ML model hasn't been trained yet (won't happen against the seeded demo DB).
 

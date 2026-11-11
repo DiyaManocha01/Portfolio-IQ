@@ -8,9 +8,11 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api.routes import assistant, auth, discover, ledger, market, portfolio, portfolio_fit, screener, stocks
+from app.api.routes import alerts, assistant, auth, discover, ledger, market, portfolio, portfolio_fit, screener, stocks
 from app.config import settings
 from app.database.session import SessionLocal
+from app.models.alert import AlertRule
+from app.services.alert_service import evaluate_rules
 from app.services.market_data import session_calendar, snapshot_service
 from app.services.market_data.fixture_replay_provider import refresh_once as refresh_fixture_cache
 from app.services.market_data.instrument_registry import instrument_registry
@@ -72,6 +74,13 @@ async def _background_loop() -> None:
                     snapshot_service.snapshot_cache(db, live_cache)
                 finally:
                     db.close()
+
+            db = SessionLocal()
+            try:
+                enabled_rules = db.query(AlertRule).filter(AlertRule.enabled.is_(True)).all()
+                evaluate_rules(db, enabled_rules)
+            finally:
+                db.close()
         except Exception:  # noqa: BLE001 -- a background refresh must never crash the app
             logger.exception("market data background loop iteration failed")
 
@@ -134,6 +143,7 @@ app.include_router(ledger.router)
 app.include_router(assistant.router)
 app.include_router(market.router)
 app.include_router(screener.router)
+app.include_router(alerts.router)
 
 
 @app.get("/")

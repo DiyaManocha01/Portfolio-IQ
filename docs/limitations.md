@@ -106,6 +106,24 @@ UI, the methodology doc, or a future paper, it's listed here.
   long claimed `stocks.py` requires auth; the code never enforced it, and
   that predates this phase).
 
+## Intelligent Alerts (Phase 27)
+
+- **No alert has ever fired against real data.** Evaluation runs against
+  whatever `DevSampleProvider`/synthetic data this environment has
+  seeded -- the price/RSI/volume/sentiment/volatility/concentration/fit
+  numbers are real computations, but on development-sample inputs, not a
+  genuine market event. See the Phase 4/7/24 limitations above for why.
+- **Alerts only evaluate while the backend process is running.** No
+  scheduler was added (deliberate -- see ADR 0010); evaluation piggybacks
+  on the Phase 24 background loop (every ~30s) plus an on-demand
+  `POST /alerts/evaluate`. A rule created while the server is down simply
+  waits until the next time it's up; nothing is missed silently, but
+  nothing fires silently either.
+- **Dedup windows are a design choice, not a measured optimum.** The
+  60-second cooldown and once-per-calendar-day limits (for daily-move
+  types) were chosen for reasonable behavior, not tuned against any real
+  alert-volume data -- there is none to tune against yet.
+
 ## News & Sentiment (Phase 7)
 
 - **Headline-to-stock matching is unvalidated.** `services/news/matching.py`

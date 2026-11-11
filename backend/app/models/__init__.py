@@ -5,6 +5,7 @@ from app.models.news import News, NewsSentiment, SentimentLabel
 from app.models.prediction import Prediction, Direction, Confidence
 from app.models.prediction_ledger import PredictionLedgerEntry, LedgerEntryType
 from app.models.intraday_candle import IntradayCandle, CandleStatus
+from app.models.alert import AlertRule, AlertRuleType, AlertDirection, AlertEvent
 
 __all__ = [
     "User",
@@ -29,4 +30,8 @@ __all__ = [
     "LedgerEntryType",
     "IntradayCandle",
     "CandleStatus",
+    "AlertRule",
+    "AlertRuleType",
+    "AlertDirection",
+    "AlertEvent",
 ]
