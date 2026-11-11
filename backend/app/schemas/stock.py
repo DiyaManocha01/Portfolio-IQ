@@ -124,6 +124,27 @@ class ReturnsSummary(BaseModel):
     cumulative_return_1y: float | None
 
 
+class FundamentalsOut(BaseModel):
+    symbol: str
+    data_source: str
+    as_of: date
+    pe_ratio: float | None
+    market_cap: float | None
+    eps: float | None
+    dividend_yield: float | None
+    book_value: float | None
+    revenue_growth_yoy: float | None
+    profit_growth_yoy: float | None
+    roe: float | None
+    roce: float | None
+    debt_to_equity: float | None
+    disclaimer: str = (
+        "Fundamental ratios are sourced data, not investment advice. "
+        "Fields shown as unavailable are genuinely missing from the data "
+        "source, not computed or estimated by PortfolioIQ."
+    )
+
+
 class StockAnalysis(BaseModel):
     symbol: str
     data_source: str

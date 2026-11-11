@@ -338,6 +338,52 @@ returned so neither silently replaces the other. News source is
 headlines when `USE_LIVE_NEWS=true` and a local cache exists (see
 `docs/methodology.md` Section 4).
 
+### GET /stocks/{symbol}/fundamentals (Phase 26)
+```json
+{
+  "symbol": "TCS", "data_source": "DEV_SAMPLE", "as_of": "2026-11-11",
+  "pe_ratio": 25.81, "market_cap": 8113187789344.73, "eps": 133.67,
+  "dividend_yield": 2.47, "book_value": 969.59,
+  "revenue_growth_yoy": 0.2076, "profit_growth_yoy": 0.2744,
+  "roe": 0.1535, "roce": null, "debt_to_equity": 46.24,
+  "disclaimer": "Fundamental ratios are sourced data, not investment advice. Fields shown as unavailable are genuinely missing from the data source, not computed or estimated by PortfolioIQ."
+}
+```
+Cached per (stock, day) -- fundamentals don't change intraday. `roce` is
+**always null** when `data_source` is `LIVE` (no yfinance equivalent);
+only `DEV_SAMPLE` populates it. `debt_to_equity`'s scale is whatever the
+underlying source uses verbatim, unconverted -- see
+`docs/limitations.md` before assuming a 0-1 ratio vs. a percent. This
+endpoint does **not** require auth (same as every other `/stocks/*`
+route -- stock data isn't user-scoped).
+
+---
+
+## Screener (Phase 26)
+
+### GET /screener?sector=&market_cap_min=&market_cap_max=&pe_min=&pe_max=&roe_min=&debt_to_equity_max=&dividend_yield_min=&revenue_growth_min=&profit_growth_min=&rsi_min=&rsi_max=&momentum_10d_min=
+Every param is optional; an empty query returns the whole universe this
+environment has seeded (not the full, separately-unverified NIFTY 100
+list -- same scope as `GET /stocks`).
+```json
+{
+  "count": 1,
+  "results": [{
+    "symbol": "TCS", "name": "Tata Consultancy Services", "sector": "Information Technology",
+    "industry": "IT Services", "data_source": "DEV_SAMPLE", "current_price": 3615.99,
+    "market_cap": 8113187789344.73, "pe_ratio": 25.81, "eps": 133.67, "dividend_yield": 2.47,
+    "roe": 0.1535, "roce": 0.2194, "debt_to_equity": 46.24,
+    "revenue_growth_yoy": 0.2076, "profit_growth_yoy": 0.2744,
+    "rsi_14": 52.1, "momentum_10d": 0.034
+  }],
+  "disclaimer": "Screener results are filtered from sourced fundamentals and technical indicators. This is not a recommendation to buy or sell any stock."
+}
+```
+`rsi_14`/`momentum_10d` are only computed (non-null) when at least one of
+`rsi_min`/`rsi_max`/`momentum_10d_min` is supplied -- a bare fundamentals
+query leaves them `null` rather than doing unrequested work. No auth
+required (same rationale as `/stocks/*`).
+
 ---
 
 ## Discover & Portfolio Fit (the core USP)

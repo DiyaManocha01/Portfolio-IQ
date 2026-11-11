@@ -7,6 +7,7 @@ import type {
   NewsItem,
   SentimentSummary,
   StockAnalysis,
+  FundamentalsOut,
 } from '../types/api';
 
 export async function getStocks(): Promise<StockListItem[]> {
@@ -41,5 +42,10 @@ export async function getSentiment(symbol: string): Promise<SentimentSummary> {
 
 export async function getAnalysis(symbol: string, days = 400): Promise<StockAnalysis> {
   const res = await api.get<StockAnalysis>(`/stocks/${symbol}/analysis`, { params: { days } });
+  return res.data;
+}
+
+export async function getFundamentals(symbol: string): Promise<FundamentalsOut> {
+  const res = await api.get<FundamentalsOut>(`/stocks/${symbol}/fundamentals`);
   return res.data;
 }

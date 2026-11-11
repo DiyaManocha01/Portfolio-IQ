@@ -94,4 +94,8 @@ resolved by pip at install time in this environment.
 
 | Source | Terms | Notes |
 |---|---|---|
-| Yahoo Finance (via `yfinance`) | Yahoo's terms of use apply to data retrieved; `yfinance` itself is Apache-2.0 | Used for real OHLCV, not redistributed, cached locally for this project's own development/testing use only |
+| Yahoo Finance (via `yfinance`) | Yahoo's terms of use apply to data retrieved; `yfinance` itself is Apache-2.0 | Used for real OHLCV and (Phase 26) fundamentals, not redistributed, cached locally for this project's own development/testing use only |
+
+**Phase 26 note:** no new dependencies were added -- fundamentals reuse
+the already-vetted `yfinance` (Apache-2.0, Phase 4) rather than
+introducing a separate fundamentals API, per ADR 0009.

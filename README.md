@@ -33,7 +33,7 @@ model-based estimates and are not guaranteed financial advice.
 - **NLP**: Hugging Face Transformers / FinBERT (optional, see below), with a
   lexicon-based sentiment provider as the offline default
 - **AI assistant**: Anthropic Claude API (retrieval-and-cite only — see `docs/methodology.md` Section 16)
-- **Testing**: pytest (backend, 293 tests), Vitest (frontend, 46 tests)
+- **Testing**: pytest (backend, 313 tests), Vitest (frontend, 50 tests)
 - **Deployment**: Docker Compose (see `docs/DEPLOYMENT.md`)
 
 ## Project structure
@@ -83,7 +83,7 @@ Backend now running at http://localhost:8000 (interactive docs at `/docs`).
 Run tests (with the backend's venv active, DB seeded, and the server importable):
 
 ```bash
-python -m pytest app/tests/ -v   # 293 tests
+python -m pytest app/tests/ -v   # 313 tests
 ```
 
 ### Demo login
@@ -110,7 +110,7 @@ Frontend now running at http://localhost:5173 (Vite default).
 Run frontend tests:
 
 ```bash
-npm test   # 46 tests (Vitest + React Testing Library)
+npm test   # 50 tests (Vitest + React Testing Library)
 ```
 
 ## Data sources: LIVE vs DEVELOPMENT SAMPLE
@@ -193,6 +193,17 @@ the full provider-abstraction pattern.
   see `docs/adr/0008-realtime-market-data-angelone.md` for the provider
   comparison, what's verified vs. not, and the personal-use licensing
   constraint that applies to every broker API evaluated.
+- **Live Market Dashboard** (Phase 25): a Market page (watchlist grid, derived
+  top gainers/losers, market/feed status banner), a persistent WebSocket
+  hook distinct from the rest of the app's fetch-once data pattern, and an
+  intraday chart on the stock detail page that's hidden -- never faked --
+  when no real-time candles exist yet.
+- **Fundamental Analysis & Screener** (Phase 26): P/E, P/B, EPS, ROE, ROCE,
+  debt/equity, dividend yield, and revenue/profit growth per stock, plus a
+  screener filtering the tracked universe by any combination of those and
+  technical indicators (RSI, momentum). ROCE and the `debt_to_equity` scale
+  have real data-source gaps, documented rather than filled in -- see
+  `docs/adr/0009-fundamentals-and-screener.md`.
 
 ## Known limitations (honestly, and extended every phase)
 

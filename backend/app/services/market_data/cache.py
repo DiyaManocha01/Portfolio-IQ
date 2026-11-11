@@ -26,6 +26,24 @@ MANIFEST_PATH = CACHE_DIR / "cache_manifest.json"
 
 REQUIRED_COLUMNS = ["date", "open", "high", "low", "close", "volume"]
 
+# Phase 26: fundamentals are a point-in-time snapshot, not a time series,
+# so a flat JSON file per symbol (not Parquet) is the natural format.
+FUNDAMENTALS_CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "fundamentals_cache"
+FUNDAMENTALS_MANIFEST_PATH = FUNDAMENTALS_CACHE_DIR / "fundamentals_manifest.json"
+
+FUNDAMENTAL_FIELDS = [
+    "pe_ratio",
+    "market_cap",
+    "eps",
+    "dividend_yield",
+    "book_value",
+    "revenue_growth_yoy",
+    "profit_growth_yoy",
+    "roe",
+    "roce",
+    "debt_to_equity",
+]
+
 
 @dataclass
 class CacheEntryMeta:
@@ -106,6 +124,50 @@ def read_manifest() -> dict:
     if not MANIFEST_PATH.exists():
         return {}
     return json.loads(MANIFEST_PATH.read_text())
+
+
+def _fundamentals_path(symbol: str) -> Path:
+    return FUNDAMENTALS_CACHE_DIR / f"{_sanitize_filename(symbol)}.json"
+
+
+def read_fundamentals_cache(symbol: str) -> dict | None:
+    """Returns the cached fundamentals dict for a symbol, or None if uncached.
+
+    Keys exactly match FundamentalSnapshot's fields (never a partial
+    dict -- a cached entry always has every key, even if some values are
+    None from the original fetch).
+    """
+    path = _fundamentals_path(symbol)
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text())
+    return {field: data.get(field) for field in FUNDAMENTAL_FIELDS}
+
+
+def write_fundamentals_cache(symbol: str, data: dict, source: str) -> None:
+    """Writes a fundamentals snapshot to the cache and updates its manifest.
+
+    ``data`` must have exactly FUNDAMENTAL_FIELDS as keys (None values are
+    fine and preserved as-is -- this cache never fills a missing field
+    with anything else).
+    """
+    missing = set(FUNDAMENTAL_FIELDS) - set(data.keys())
+    if missing:
+        raise ValueError(f"Cannot cache fundamentals for {symbol}: missing keys {missing}")
+
+    FUNDAMENTALS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    payload = {field: data[field] for field in FUNDAMENTAL_FIELDS}
+    _fundamentals_path(symbol).write_text(json.dumps(payload, indent=2, sort_keys=True))
+
+    manifest = {}
+    if FUNDAMENTALS_MANIFEST_PATH.exists():
+        manifest = json.loads(FUNDAMENTALS_MANIFEST_PATH.read_text())
+    manifest[symbol.upper()] = {
+        "source": source,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "null_fields": [f for f in FUNDAMENTAL_FIELDS if payload[f] is None],
+    }
+    FUNDAMENTALS_MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, sort_keys=True))
 
 
 def validate_ohlcv(df: pd.DataFrame, symbol: str, max_gap_days: int = 10) -> list[str]:

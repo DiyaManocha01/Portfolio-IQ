@@ -66,9 +66,10 @@ def seed():
         for symbol in ALL_SYMBOLS:
             stock = market_data.get_or_create_stock(symbol)
             written = market_data.sync_history(stock, days=400)
+            market_data.get_fundamentals(stock)  # Phase 26: populates financial_metrics
             news_service.generate_sample_news(stock)
             stocks[symbol] = stock
-            print(f"  {symbol}: {written} market_data rows, news generated")
+            print(f"  {symbol}: {written} market_data rows, fundamentals + news generated")
 
         print("Seeding demo user + portfolio...")
         user = db.query(User).filter(User.email == DEMO_EMAIL).first()

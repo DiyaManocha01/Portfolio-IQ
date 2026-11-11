@@ -117,18 +117,19 @@ SQLAlchemy 2.0 typed `Mapped[...]` declarations with cascading deletes.
 Schema changes go through Alembic (`backend/alembic/`) as of Phase 4 —
 `Base.metadata.create_all()` is no longer used anywhere.
 
-## API routes (8 route modules)
+## API routes (10 route modules)
 
 | Module | Mounted at | Auth | Notes |
 |---|---|---|---|
 | `auth.py` | `/auth` | mixed | register/login rate-limited (Phase 21) |
 | `portfolio.py` | `/portfolio` | required | holdings, risk, health, optimize, what-if, stress-test, risk-attribution |
-| `stocks.py` | `/stocks` | required | quote, history, analysis, prediction (+SHAP), news, sentiment |
-| `discover.py` | `/discover` | required | personalized candidate ranking |
-| `portfolio_fit.py` | `/portfolio-fit` | required | fit breakdown, compare, counterfactual |
+| `stocks.py` | `/stocks` | **none** | quote, history, analysis, prediction (+SHAP), news, sentiment, fundamentals (Phase 26) -- not user-scoped data, so never required `get_current_user`; this table previously (incorrectly) said "required" here, corrected in Phase 26, see ADR 0009 |
+| `discover.py` | `/discover` | required | personalized candidate ranking (via `get_current_portfolio`, which itself requires auth) |
+| `portfolio_fit.py` | `/portfolio-fit` | required | fit breakdown, compare, counterfactual (same `get_current_portfolio` path) |
 | `ledger.py` | `/ledger` | **none** | the one deliberately public surface (Phase 18) |
 | `assistant.py` | `/assistant` | required | rate-limited (Phase 21) |
 | `market.py` | `/market`, `/ws/market` | required (JWT as `?token=` on the WS) | status poll, intraday candles, push feed (Phase 24/25) |
+| `screener.py` | `/screener` | **none** | fundamental + technical stock screener (Phase 26) |
 
 Full request/response shapes: `API_CONTRACT.md`.
 
@@ -138,14 +139,17 @@ Two subsystems follow the same pattern, so a real external integration
 can be dropped in without touching calling code:
 
 1. **Market data** (`app/services/market_data/providers.py`):
-   `MarketDataProvider` is an ABC with `get_history`/`get_quote`.
-   `DevSampleProvider` (default) generates deterministic, seeded synthetic
-   OHLCV data with a shared market factor for realistic cross-stock
-   correlation, tagged `DataSource.DEV_SAMPLE`. `LiveYFinanceProvider` is a
-   real implementation behind the same interface, tagged `DataSource.LIVE`,
-   enabled via `USE_LIVE_MARKET_DATA=true`, reading a local Parquet cache
-   (`app/services/market_data/cache.py`) populated by
-   `scripts/fetch_nifty100.py` run locally.
+   `MarketDataProvider` is an ABC with `get_history`/`get_quote`/
+   `get_fundamentals` (Phase 26). `DevSampleProvider` (default) generates
+   deterministic, seeded synthetic OHLCV and fundamentals data with a
+   shared market factor for realistic cross-stock correlation, tagged
+   `DataSource.DEV_SAMPLE`. `LiveYFinanceProvider` is a real implementation
+   behind the same interface, tagged `DataSource.LIVE`, enabled via
+   `USE_LIVE_MARKET_DATA=true`, reading local caches
+   (`app/services/market_data/cache.py`: Parquet for OHLCV, JSON for
+   fundamentals) populated by `scripts/fetch_nifty100.py` /
+   `scripts/fetch_fundamentals.py` run locally. ROCE has no yfinance
+   equivalent and is always null from the live provider -- see ADR 0009.
 2. **Sentiment** (`app/nlp/`): `SentimentService` selects between
    `lexicon_sentiment` (default, zero external dependencies) and
    `finbert_sentiment` (a real `transformers` pipeline against
@@ -217,7 +221,8 @@ frontend/src/
   components/   # shared UI pieces (cards, badges, tables, nav)
   pages/         # one file per route:
                  #   Dashboard, Portfolio, Market (Phase 25), Stocks,
-                 #   StockDetail (+ live price/intraday chart, Phase 25),
+                 #   StockDetail (+ live price/intraday chart, Phase 25;
+                 #   + Fundamentals tab, Phase 26), Screener (Phase 26),
                  #   Discover, Intelligence (risk + risk attribution),
                  #   PortfolioFit (+ compare/counterfactual, Phase 20),
                  #   PortfolioLab (What-If + Optimization tabs, Phase 20)
@@ -233,9 +238,9 @@ frontend/src/
   test/          # Vitest setup (Phase 21)
 ```
 
-46 Vitest + React Testing Library tests cover `utils/format.ts`,
+50 Vitest + React Testing Library tests cover `utils/format.ts`,
 `useMarketFeed`, and smoke-level rendering (loading/error/data states,
-form submission) of the Phase 20 and Phase 25 UI.
+form submission) of the Phase 20, 25, and 26 UI.
 
 ## Security (Phase 21)
 

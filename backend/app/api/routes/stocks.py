@@ -7,6 +7,7 @@ from app.ml.predict import ModelNotTrainedError, PredictionService
 from app.models.stock import Stock
 from app.schemas.stock import (
     AnalysisPoint,
+    FundamentalsOut,
     NewsItemOut,
     OHLCVPoint,
     PredictionOut,
@@ -150,6 +151,33 @@ def get_stock_analysis(symbol: str, days: int = 400, db: Session = Depends(get_d
         beta_vs_nifty50=round(beta_value, 3) if beta_value is not None else None,
         benchmark_data_source=market_data.data_source_label,
         series=series,
+    )
+
+
+@router.get("/{symbol}/fundamentals", response_model=FundamentalsOut)
+def get_stock_fundamentals(symbol: str, db: Session = Depends(get_db)):
+    """Phase 26: P/E, P/B (via book value), EPS, ROE, ROCE, debt/equity,
+    dividend yield, revenue/profit growth. Fields the data source doesn't
+    provide come back null -- never estimated. See FundamentalsOut's
+    disclaimer and docs/limitations.md for the roce/debt_to_equity caveats.
+    """
+    stock = _get_stock_or_404(symbol, db)
+    market_data = MarketDataService(db)
+    metric = market_data.get_fundamentals(stock)
+    return FundamentalsOut(
+        symbol=stock.symbol,
+        data_source=metric.source.value,
+        as_of=metric.date,
+        pe_ratio=metric.pe_ratio,
+        market_cap=metric.market_cap,
+        eps=metric.eps,
+        dividend_yield=metric.dividend_yield,
+        book_value=metric.book_value,
+        revenue_growth_yoy=metric.revenue_growth_yoy,
+        profit_growth_yoy=metric.profit_growth_yoy,
+        roe=metric.roe,
+        roce=metric.roce,
+        debt_to_equity=metric.debt_to_equity,
     )
 
 

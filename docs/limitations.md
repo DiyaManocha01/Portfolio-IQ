@@ -77,6 +77,35 @@ UI, the methodology doc, or a future paper, it's listed here.
   same number `MarketDataService.get_quote()` already returns — never a
   fabricated "live" movement).
 
+## Fundamental Analysis & Screener (Phase 26)
+
+- **yfinance's fundamental field coverage for NSE-listed tickers is
+  unverified.** This sandbox can't reach query1.finance.yahoo.com (same
+  constraint as OHLCV data), so no one has confirmed which `Ticker.info`
+  fields actually come back non-null for Indian stocks. Run
+  `scripts/fetch_fundamentals.py` locally and check its per-symbol null-field
+  report before assuming any field is reliably populated.
+- **ROCE (Return on Capital Employed) has no yfinance equivalent at all.**
+  `LiveYFinanceProvider.get_fundamentals()` always returns `roce=None`;
+  only `DevSampleProvider`'s synthetic data populates it (clearly tagged
+  `DEV_SAMPLE`). The UI shows "Not available from this data source," never
+  a guess.
+- **`debt_to_equity`'s units are unconfirmed.** Yahoo Finance's own
+  convention is reportedly a percent-like number (e.g. 45.2, not 0.452),
+  but this couldn't be verified against a live response here. The value is
+  stored and displayed exactly as the source returns it -- do not assume a
+  scale when using it in a calculation until you've confirmed it against
+  a real fetch.
+- **The screener operates on the seeded demo/discover universe, not the
+  full (already-unverified) NIFTY 100 list** -- same scope as the
+  pre-existing `GET /stocks` endpoint.
+- **`GET /stocks/{symbol}/fundamentals` and `GET /screener` don't require
+  auth**, matching `stocks.py`'s existing behavior for the rest of the
+  non-user-scoped stock endpoints -- see ADR 0009 for the pre-existing
+  docs-vs-code discrepancy this surfaced (ARCHITECTURE.md's route table has
+  long claimed `stocks.py` requires auth; the code never enforced it, and
+  that predates this phase).
+
 ## News & Sentiment (Phase 7)
 
 - **Headline-to-stock matching is unvalidated.** `services/news/matching.py`

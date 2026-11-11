@@ -3,7 +3,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.stock import MarketData, Stock
+from app.models.stock import FinancialMetric, MarketData, Stock
 from app.services.market_data.providers import (
     SECTORS,
     STOCK_NAMES,
@@ -93,6 +93,44 @@ class MarketDataService:
         latest = history[-1]
         previous = history[-2] if len(history) > 1 else None
         return latest, previous
+
+    def get_fundamentals(self, stock: Stock) -> FinancialMetric:
+        """Returns today's fundamentals snapshot, fetching+caching it if absent.
+
+        One row per (stock, day), same granularity as daily OHLCV --
+        fundamentals don't change intraday in any source this project
+        uses, so refetching more than once a day would just be wasted
+        provider calls.
+        """
+        today = date.today()
+        existing = (
+            self.db.query(FinancialMetric)
+            .filter(FinancialMetric.stock_id == stock.id, FinancialMetric.date == today)
+            .first()
+        )
+        if existing:
+            return existing
+
+        snapshot = self.provider.get_fundamentals(stock.symbol)
+        metric = FinancialMetric(
+            stock_id=stock.id,
+            date=today,
+            pe_ratio=snapshot.pe_ratio,
+            market_cap=snapshot.market_cap,
+            eps=snapshot.eps,
+            dividend_yield=snapshot.dividend_yield,
+            book_value=snapshot.book_value,
+            revenue_growth_yoy=snapshot.revenue_growth_yoy,
+            profit_growth_yoy=snapshot.profit_growth_yoy,
+            roe=snapshot.roe,
+            roce=snapshot.roce,
+            debt_to_equity=snapshot.debt_to_equity,
+            source=self.provider.source,
+        )
+        self.db.add(metric)
+        self.db.commit()
+        self.db.refresh(metric)
+        return metric
 
     @property
     def data_source_label(self) -> str:

@@ -8,7 +8,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api.routes import assistant, auth, discover, ledger, market, portfolio, portfolio_fit, stocks
+from app.api.routes import assistant, auth, discover, ledger, market, portfolio, portfolio_fit, screener, stocks
 from app.config import settings
 from app.database.session import SessionLocal
 from app.services.market_data import session_calendar, snapshot_service
@@ -133,6 +133,7 @@ app.include_router(portfolio_fit.router)
 app.include_router(ledger.router)
 app.include_router(assistant.router)
 app.include_router(market.router)
+app.include_router(screener.router)
 
 
 @app.get("/")

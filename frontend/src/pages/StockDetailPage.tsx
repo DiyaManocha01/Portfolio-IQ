@@ -16,7 +16,7 @@ import { MacdChart } from '../charts/MacdChart';
 import { formatCurrency, formatNumber, formatProbabilityPct, formatSignedPct, formatVolume, timeAgo } from '../utils/format';
 import type { TickOut } from '../types/api';
 
-type Tab = 'overview' | 'analysis' | 'outlook' | 'news';
+type Tab = 'overview' | 'analysis' | 'fundamentals' | 'outlook' | 'news';
 
 export default function StockDetailPage() {
   const { symbol = '' } = useParams();
@@ -28,6 +28,7 @@ export default function StockDetailPage() {
   const news = useAsync(() => stockService.getNews(symbol, 10), [symbol]);
   const sentiment = useAsync(() => stockService.getSentiment(symbol), [symbol]);
   const candles = useAsync(() => marketService.getCandles(symbol), [symbol]);
+  const fundamentals = useAsync(() => stockService.getFundamentals(symbol), [symbol]);
   const feed = useMarketFeed();
   const liveTick = feed.data?.ticks.find((t) => t.symbol === symbol.toUpperCase());
 
@@ -49,7 +50,7 @@ export default function StockDetailPage() {
           <QuoteRow quote={detail.data.quote} liveTick={liveTick} />
 
           <div className="flex gap-2 border-b border-base-border">
-            {(['overview', 'analysis', 'outlook', 'news'] as Tab[]).map((t) => (
+            {(['overview', 'analysis', 'fundamentals', 'outlook', 'news'] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -76,6 +77,14 @@ export default function StockDetailPage() {
               loading={analysis.loading}
               error={analysis.error}
               onRetry={analysis.reload}
+            />
+          )}
+          {tab === 'fundamentals' && (
+            <FundamentalsTab
+              fundamentals={fundamentals.data}
+              loading={fundamentals.loading}
+              error={fundamentals.error}
+              onRetry={fundamentals.reload}
             />
           )}
           {tab === 'outlook' && (
@@ -264,6 +273,72 @@ function AnalysisTab({
 function toneFor(value: number | null | undefined): 'positive' | 'negative' | undefined {
   if (value === null || value === undefined) return undefined;
   return value >= 0 ? 'positive' : 'negative';
+}
+
+function FundamentalsTab({
+  fundamentals,
+  loading,
+  error,
+  onRetry,
+}: {
+  fundamentals: import('../types/api').FundamentalsOut | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  if (loading) return <LoadingBlock />;
+  if (error) return <ErrorBlock message={error} onRetry={onRetry} />;
+  if (!fundamentals) return null;
+
+  return (
+    <div className="space-y-6">
+      <Card
+        title="Fundamentals"
+        subtitle={`As of ${fundamentals.as_of}`}
+        action={<DataSourceBadge source={fundamentals.data_source as 'DEV_SAMPLE' | 'LIVE'} />}
+      >
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <FundamentalStat label="P/E Ratio" value={formatNumber(fundamentals.pe_ratio, 2)} />
+          <FundamentalStat label="Market Cap" value={formatCurrency(fundamentals.market_cap, { compact: true })} />
+          <FundamentalStat label="EPS" value={formatCurrency(fundamentals.eps)} />
+          <FundamentalStat label="Book Value" value={formatCurrency(fundamentals.book_value)} />
+          <FundamentalStat label="Dividend Yield" value={fundamentals.dividend_yield !== null ? `${fundamentals.dividend_yield.toFixed(2)}%` : '—'} />
+          <FundamentalStat label="ROE" value={formatProbabilityPct(fundamentals.roe)} />
+          <FundamentalStat
+            label="ROCE"
+            value={formatProbabilityPct(fundamentals.roce)}
+            note={fundamentals.roce === null ? 'Not available from this data source' : undefined}
+          />
+          <FundamentalStat
+            label="Debt/Equity"
+            value={formatNumber(fundamentals.debt_to_equity, 2)}
+            note="Source's own convention; see docs/limitations.md"
+          />
+          <FundamentalStat
+            label="Revenue Growth (YoY)"
+            value={fundamentals.revenue_growth_yoy !== null ? formatSignedPct(fundamentals.revenue_growth_yoy * 100) : '—'}
+          />
+          <FundamentalStat
+            label="Profit Growth (YoY)"
+            value={fundamentals.profit_growth_yoy !== null ? formatSignedPct(fundamentals.profit_growth_yoy * 100) : '—'}
+          />
+        </div>
+      </Card>
+
+      <div className="rounded-lg border border-base-border bg-base-surface2 px-3 py-2.5 text-xs italic text-slate-500">
+        {fundamentals.disclaimer}
+      </div>
+    </div>
+  );
+}
+
+function FundamentalStat({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div className="rounded-lg border border-base-border bg-base-surface2 p-3" title={note}>
+      <p className="text-[11px] uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-bold text-slate-100">{value}</p>
+    </div>
+  );
 }
 
 function OutlookTab({

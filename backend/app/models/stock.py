@@ -60,6 +60,20 @@ class FinancialMetric(Base):
     eps: Mapped[float | None] = mapped_column(Float, nullable=True)
     dividend_yield: Mapped[float | None] = mapped_column(Float, nullable=True)
     book_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Phase 26. revenue/profit growth are YoY fractions (0.12 = 12%).
+    # roe/roce are fractions too. debt_to_equity follows Yahoo
+    # Finance's own convention for whichever provider sourced it (percent-
+    # like, e.g. 45.2, not a 0-1 ratio) -- this is Yahoo's display
+    # convention, unverified against a live response from this sandbox
+    # (network blocked); see docs/limitations.md before using it in a
+    # calculation that assumes a specific scale. roce has NO yfinance
+    # equivalent and is therefore always NULL from LiveYFinanceProvider --
+    # only DevSampleProvider's synthetic data populates it.
+    revenue_growth_yoy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    profit_growth_yoy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    roe: Mapped[float | None] = mapped_column(Float, nullable=True)
+    roce: Mapped[float | None] = mapped_column(Float, nullable=True)
+    debt_to_equity: Mapped[float | None] = mapped_column(Float, nullable=True)
     source: Mapped[DataSource] = mapped_column(Enum(DataSource, name="data_source"), default=DataSource.DEV_SAMPLE)
 
     stock: Mapped["Stock"] = relationship(back_populates="financial_metrics")

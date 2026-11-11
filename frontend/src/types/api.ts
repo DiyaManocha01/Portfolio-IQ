@@ -444,3 +444,64 @@ export interface CandlesOut {
   symbol: string;
   candles: CandleOut[];
 }
+
+// --- Phase 26: Fundamentals & Screener ---
+
+export interface FundamentalsOut {
+  symbol: string;
+  data_source: string;
+  as_of: string;
+  pe_ratio: number | null;
+  market_cap: number | null;
+  eps: number | null;
+  dividend_yield: number | null;
+  book_value: number | null;
+  revenue_growth_yoy: number | null;
+  profit_growth_yoy: number | null;
+  roe: number | null;
+  roce: number | null;
+  debt_to_equity: number | null;
+  disclaimer: string;
+}
+
+export interface ScreenerResultOut {
+  symbol: string;
+  name: string;
+  sector: string;
+  industry: string;
+  data_source: string;
+  current_price: number | null;
+  market_cap: number | null;
+  pe_ratio: number | null;
+  eps: number | null;
+  dividend_yield: number | null;
+  roe: number | null;
+  roce: number | null;
+  debt_to_equity: number | null;
+  revenue_growth_yoy: number | null;
+  profit_growth_yoy: number | null;
+  rsi_14: number | null;
+  momentum_10d: number | null;
+}
+
+export interface ScreenerOut {
+  count: number;
+  results: ScreenerResultOut[];
+  disclaimer: string;
+}
+
+export interface ScreenerFilters {
+  sector?: string;
+  market_cap_min?: number;
+  market_cap_max?: number;
+  pe_min?: number;
+  pe_max?: number;
+  roe_min?: number;
+  debt_to_equity_max?: number;
+  dividend_yield_min?: number;
+  revenue_growth_min?: number;
+  profit_growth_min?: number;
+  rsi_min?: number;
+  rsi_max?: number;
+  momentum_10d_min?: number;
+}

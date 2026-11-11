@@ -117,6 +117,32 @@ class OHLCVBar:
     volume: int
 
 
+@dataclass
+class FundamentalSnapshot:
+    """A point-in-time fundamentals snapshot (Phase 26).
+
+    Every field is Optional -- a provider that genuinely has no figure for
+    a field returns None, never a fabricated placeholder. ``roce`` in
+    particular has no yfinance equivalent at all, so
+    ``LiveYFinanceProvider`` always returns None for it; only
+    ``DevSampleProvider``'s synthetic data populates it, for demo
+    completeness. See ``docs/limitations.md`` for the ``debt_to_equity``
+    units caveat (Yahoo Finance's own percent-like convention, unverified
+    against a live response in this sandbox).
+    """
+
+    pe_ratio: float | None
+    market_cap: float | None
+    eps: float | None
+    dividend_yield: float | None
+    book_value: float | None
+    revenue_growth_yoy: float | None
+    profit_growth_yoy: float | None
+    roe: float | None
+    roce: float | None
+    debt_to_equity: float | None
+
+
 class MarketDataProvider(ABC):
     source: DataSource
 
@@ -126,6 +152,10 @@ class MarketDataProvider(ABC):
 
     @abstractmethod
     def get_quote(self, symbol: str) -> OHLCVBar:
+        ...
+
+    @abstractmethod
+    def get_fundamentals(self, symbol: str) -> FundamentalSnapshot:
         ...
 
 
@@ -213,6 +243,29 @@ class DevSampleProvider(MarketDataProvider):
         history = self.get_history(symbol, days=5)
         return history[-1]
 
+    def get_fundamentals(self, symbol: str) -> FundamentalSnapshot:
+        """Deterministic synthetic fundamentals, seeded by symbol (same
+        pattern as get_history) -- clearly labeled DEV_SAMPLE by the caller
+        (MarketDataService), never presented as real financial data.
+        """
+        rng = random.Random(self._seed_for(symbol) + 1)  # offset so this doesn't reuse get_history's exact draws
+        base_price = BASE_PRICES.get(symbol, 1000.0)
+        pe_ratio = round(rng.uniform(12.0, 45.0), 2)
+        eps = round(base_price / pe_ratio, 2)
+        shares_outstanding = rng.uniform(1e8, 3.5e9)
+        return FundamentalSnapshot(
+            pe_ratio=pe_ratio,
+            market_cap=round(base_price * shares_outstanding, 2),
+            eps=eps,
+            dividend_yield=round(rng.uniform(0.0, 2.5), 2),
+            book_value=round(base_price / rng.uniform(1.5, 6.0), 2),
+            revenue_growth_yoy=round(rng.uniform(-0.05, 0.25), 4),
+            profit_growth_yoy=round(rng.uniform(-0.10, 0.30), 4),
+            roe=round(rng.uniform(0.08, 0.28), 4),
+            roce=round(rng.uniform(0.10, 0.32), 4),
+            debt_to_equity=round(rng.uniform(0.0, 80.0), 2),
+        )
+
 
 class LiveYFinanceProvider(MarketDataProvider):
     """Real market-data provider backed by Yahoo Finance via yfinance.
@@ -276,6 +329,41 @@ class LiveYFinanceProvider(MarketDataProvider):
         if not history:
             raise ValueError(f"No live data available for {symbol}")
         return history[-1]
+
+    def get_fundamentals(self, symbol: str) -> FundamentalSnapshot:
+        """Cache-first fundamentals via yfinance's ``Ticker.info`` dict.
+
+        HONESTY NOTE: yfinance's field coverage for NSE-listed tickers is
+        unverified in this sandbox (no network access to confirm which
+        fields actually come back non-null for Indian stocks) -- any
+        field yfinance doesn't return is passed through as None, never
+        guessed. ``roce`` has no yfinance equivalent at all and is always
+        None here. ``debt_to_equity`` is stored exactly as yfinance
+        returns it (Yahoo's own percent-like convention, not confirmed
+        against a live response here) -- see docs/limitations.md.
+        """
+        from app.services.market_data import cache
+
+        cached = cache.read_fundamentals_cache(symbol)
+        if cached is not None:
+            return FundamentalSnapshot(**cached)
+
+        import yfinance as yf  # local import: optional dependency
+
+        yf_symbol = symbol if symbol.startswith("^") else f"{symbol}.NS"
+        info = yf.Ticker(yf_symbol).info
+        return FundamentalSnapshot(
+            pe_ratio=info.get("trailingPE"),
+            market_cap=info.get("marketCap"),
+            eps=info.get("trailingEps"),
+            dividend_yield=info.get("dividendYield"),
+            book_value=info.get("bookValue"),
+            revenue_growth_yoy=info.get("revenueGrowth"),
+            profit_growth_yoy=info.get("earningsGrowth"),
+            roe=info.get("returnOnEquity"),
+            roce=None,  # no yfinance equivalent -- never fabricated
+            debt_to_equity=info.get("debtToEquity"),
+        )
 
 
 def get_provider(use_live: bool) -> MarketDataProvider:
