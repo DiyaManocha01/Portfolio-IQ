@@ -640,6 +640,66 @@ never a bare number.
 ### GET /alerts/events?unread_only=false&limit=50 -> list of events (same shape), newest first, for the current user's rules only
 ### POST /alerts/events/{id}/read -> marks it read, returns the updated event
 
+## Paper Trading (Phase 28, requires auth)
+
+A hypothetical account funded with virtual cash (default Rs 10 lakh),
+never the real portfolio -- see ADR 0011. Every response below carries a
+`disclaimer` field naming it hypothetical.
+
+### GET /paper-trading/account
+Creates the account on first call (idempotent). Returns:
+```json
+{
+  "starting_cash": 1000000.0, "cash_balance": 965000.0, "holdings_value": 35500.0,
+  "total_value": 1000500.0, "unrealized_pnl": 500.0, "realized_pnl": 0.0,
+  "total_pnl": 500.0, "total_return_pct": 0.05,
+  "holdings": [
+    { "symbol": "TCS", "name": "Tata Consultancy Services", "quantity": 10,
+      "avg_buy_price": 3500.0, "current_price": 3550.0, "invested_value": 35000.0,
+      "current_value": 35500.0, "unrealized_pnl": 500.0, "unrealized_pnl_pct": 1.43 }
+  ],
+  "data_source": "DEV_SAMPLE",
+  "disclaimer": "This is a hypothetical paper-trading account. No real money, real orders, or brokerage integration is involved -- prices are real (or dev-sample) market data, but every trade here is simulated."
+}
+```
+`total_pnl` is `total_value - starting_cash`, not `unrealized_pnl +
+realized_pnl` -- see ADR 0011 for why those two don't always sum to it
+(open positions' fees).
+
+### POST /paper-trading/account/reset -> wipes holdings/transactions, restores starting cash, same shape as above
+
+### POST /paper-trading/buy `{ "symbol": "TCS", "quantity": 10 }`
+Executes at the current real-or-dev-sample quote; fees use the same
+illustrative NSE delivery-trade cost model as the What-If Simulator
+(Phase 11). `quantity` must be `> 0` (422 otherwise). Returns `400` if
+cash is insufficient (fees included). Returns:
+```json
+{ "id": 1, "symbol": "TCS", "type": "BUY", "quantity": 10, "price": 3550.0,
+  "fees": 12.8, "realized_pnl": null, "executed_at": "2026-11-11T09:00:00Z" }
+```
+
+### POST /paper-trading/sell `{ "symbol": "TCS", "quantity": 4 }`
+Returns `400` if the quantity held is insufficient. Same shape as above,
+with `realized_pnl` populated: `(sell_price - avg_buy_price) * quantity - fees`.
+
+### GET /paper-trading/holdings -> list of the `holdings` entries above, for the current user's account only
+### GET /paper-trading/transactions -> list of the above transaction shape, newest first
+
+### GET /paper-trading/performance?days=180
+Account total value over time vs. a NIFTY 50 buy-and-hold benchmark with
+the same starting cash (see ADR 0011 for the simplifications -- current
+holdings assumed constant across the window, same as the real
+portfolio's performance series).
+```json
+{
+  "points": [{ "date": "2026-05-15", "value": 1000000.0 }, ...],
+  "benchmark_points": [{ "date": "2026-05-15", "value": 1000000.0 }, ...],
+  "account_return_pct": 0.05, "benchmark_return_pct": 1.2,
+  "data_source": "DEV_SAMPLE",
+  "disclaimer": "..."
+}
+```
+
 ## Error shape
 FastAPI default: `{ "detail": "message" }` with 401/404/400/503 status codes as appropriate. 503 specifically means the ML model hasn't been trained yet (won't happen against the seeded demo DB).
 

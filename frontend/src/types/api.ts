@@ -555,3 +555,61 @@ export interface AlertEventOut {
   message: string;
   is_read: boolean;
 }
+
+// --- Phase 28: Paper Trading ---
+
+export interface TradeRequest {
+  symbol: string;
+  quantity: number;
+}
+
+export interface PaperTransactionOut {
+  id: number;
+  symbol: string;
+  type: 'BUY' | 'SELL';
+  quantity: number;
+  price: number;
+  fees: number;
+  realized_pnl: number | null;
+  executed_at: string;
+}
+
+export interface PaperHoldingOut {
+  symbol: string;
+  name: string;
+  quantity: number;
+  avg_buy_price: number;
+  current_price: number;
+  invested_value: number;
+  current_value: number;
+  unrealized_pnl: number;
+  unrealized_pnl_pct: number;
+}
+
+export interface PaperAccountOut {
+  starting_cash: number;
+  cash_balance: number;
+  holdings_value: number;
+  total_value: number;
+  unrealized_pnl: number;
+  realized_pnl: number;
+  total_pnl: number;
+  total_return_pct: number;
+  holdings: PaperHoldingOut[];
+  data_source: 'DEV_SAMPLE' | 'LIVE';
+  disclaimer: string;
+}
+
+export interface PaperPerformancePoint {
+  date: string;
+  value: number;
+}
+
+export interface PaperPerformanceOut {
+  points: PaperPerformancePoint[];
+  benchmark_points: PaperPerformancePoint[];
+  account_return_pct: number;
+  benchmark_return_pct: number;
+  data_source: 'DEV_SAMPLE' | 'LIVE';
+  disclaimer: string;
+}

@@ -124,6 +124,34 @@ UI, the methodology doc, or a future paper, it's listed here.
   types) were chosen for reasonable behavior, not tuned against any real
   alert-volume data -- there is none to tune against yet.
 
+## Paper Trading (Phase 28)
+
+- **No simulated trade has ever executed against a real market price.**
+  Execution prices come from `MarketDataService.get_quote`, the same
+  real-or-dev-sample price every other feature uses, but this sandbox
+  has no live feed (see the Phase 4/24 limitations above), so every
+  trade in this environment's tests and demos fills against
+  development-sample data.
+- **Fees reuse Phase 11's illustrative, unsourced cost model.**
+  `estimate_indian_trade_cost` was never validated against a real
+  broker's actual charges -- see the What-If Simulator limitations below
+  for the same caveat, which applies identically here.
+- **Performance series uses the same "current holdings held constant"
+  simplification as the real portfolio.** `get_performance` is not a
+  transaction-by-transaction historical reconstruction; it shows what
+  the account's current holdings would be worth across the lookback
+  window, exactly the same simplification already documented for
+  `portfolio_calc.py::get_performance_series()`. A paper account that
+  has since sold a position will not show that position's historical
+  contribution.
+- **The benchmark comparison is NIFTY 50 buy-and-hold only**, normalized
+  to the account's starting cash -- not a backtested trading strategy,
+  not risk-adjusted, and not a claim that this is how the hypothetical
+  account "should" have performed.
+- **`total_pnl` and `unrealized_pnl + realized_pnl` will not always
+  match while a position is open.** This is intentional, not a bug --
+  see ADR 0011 for the fee-drag reasoning.
+
 ## News & Sentiment (Phase 7)
 
 - **Headline-to-stock matching is unvalidated.** `services/news/matching.py`

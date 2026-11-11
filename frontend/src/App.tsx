@@ -11,6 +11,7 @@ import MarketPage from './pages/MarketPage';
 import StocksPage from './pages/StocksPage';
 import ScreenerPage from './pages/ScreenerPage';
 import AlertsPage from './pages/AlertsPage';
+import PaperTradingPage from './pages/PaperTradingPage';
 import StockDetailPage from './pages/StockDetailPage';
 import DiscoverPage from './pages/DiscoverPage';
 import PortfolioFitPage from './pages/PortfolioFitPage';
@@ -38,6 +39,7 @@ export default function App() {
             <Route path="/stocks" element={<StocksPage />} />
             <Route path="/screener" element={<ScreenerPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/paper-trading" element={<PaperTradingPage />} />
             <Route path="/stocks/:symbol" element={<StockDetailPage />} />
             <Route path="/discover" element={<DiscoverPage />} />
             <Route path="/discover/:symbol" element={<PortfolioFitPage />} />

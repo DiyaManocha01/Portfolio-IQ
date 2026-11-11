@@ -99,3 +99,8 @@ resolved by pip at install time in this environment.
 **Phase 26 note:** no new dependencies were added -- fundamentals reuse
 the already-vetted `yfinance` (Apache-2.0, Phase 4) rather than
 introducing a separate fundamentals API, per ADR 0009.
+
+**Phase 28 note:** no new dependencies were added -- Paper Trading
+reuses `MarketDataService` (Phase 4/24) for execution prices,
+`estimate_indian_trade_cost` (Phase 11) for fees, and `pandas` (already
+vetted) for the performance series, per ADR 0011.

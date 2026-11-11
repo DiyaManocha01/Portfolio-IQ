@@ -33,7 +33,7 @@ model-based estimates and are not guaranteed financial advice.
 - **NLP**: Hugging Face Transformers / FinBERT (optional, see below), with a
   lexicon-based sentiment provider as the offline default
 - **AI assistant**: Anthropic Claude API (retrieval-and-cite only — see `docs/methodology.md` Section 16)
-- **Testing**: pytest (backend, 330 tests), Vitest (frontend, 55 tests)
+- **Testing**: pytest (backend, 352 tests), Vitest (frontend, 59 tests)
 - **Deployment**: Docker Compose (see `docs/DEPLOYMENT.md`)
 
 ## Project structure
@@ -83,7 +83,7 @@ Backend now running at http://localhost:8000 (interactive docs at `/docs`).
 Run tests (with the backend's venv active, DB seeded, and the server importable):
 
 ```bash
-python -m pytest app/tests/ -v   # 330 tests
+python -m pytest app/tests/ -v   # 352 tests
 ```
 
 ### Demo login
@@ -110,7 +110,7 @@ Frontend now running at http://localhost:5173 (Vite default).
 Run frontend tests:
 
 ```bash
-npm test   # 55 tests (Vitest + React Testing Library)
+npm test   # 59 tests (Vitest + React Testing Library)
 ```
 
 ## Data sources: LIVE vs DEVELOPMENT SAMPLE
@@ -212,6 +212,12 @@ the full provider-abstraction pattern.
   once-per-day, and rebaseline-on-fire) avoid excessive notifications
   without adding a new scheduler -- evaluation reuses the Phase 24
   background loop. See `docs/adr/0010-alerts-and-notifications.md`.
+- **Paper Trading** (Phase 28): a hypothetical account (default Rs 10
+  lakh virtual cash) for simulated buy/sell trades at real-or-dev-sample
+  prices, with cost-basis averaging, realized/unrealized P&L, a
+  performance chart vs. a NIFTY 50 buy-and-hold benchmark, and a reset
+  action -- wholly separate tables from the real portfolio, never
+  touching it. See `docs/adr/0011-paper-trading.md`.
 
 ## Known limitations (honestly, and extended every phase)
 

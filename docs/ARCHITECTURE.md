@@ -89,18 +89,19 @@ backend/
       stress_test_service.py           # CAPM beta-scaled shock simulation (Phase 15)
       scenario_parser.py                # regex scenario-text -> structured shock params (Phase 15)
       fit_counterfactual_service.py      # "why A > B" / "what would improve this" (Phase 16)
+      paper_trading_service.py            # hypothetical account: buy/sell, valuation, performance (Phase 28)
     assistant/
       context_builder.py       # deterministic keyword-based data router (Phase 19)
       assistant_service.py      # system prompt, Claude API call, guardrail filter (Phase 19)
     data/
       seed.py                 # dev seed script: stocks, market data, news, demo user, trains ML
       models/                  # trained model artifacts (joblib) + metadata.json, gitignored
-    tests/                    # pytest suite, 293 tests
+    tests/                    # pytest suite, 352 tests
   Dockerfile                  # multi-stage build (Phase 22)
   docker-entrypoint.sh         # migrate -> seed/train (once) -> uvicorn (Phase 22)
 ```
 
-## Database schema (16 tables)
+## Database schema (19 tables)
 
 `users` -> `user_profiles` (1:1), `users` -> `portfolios` (1:many) ->
 `holdings` / `transactions` / `portfolio_scores`. `holdings`/`transactions`
@@ -115,13 +116,16 @@ never updated. `intraday_candles` is a separate table from `market_data`
 `market_data`. `users` -> `alert_rules` (1:many, Phase 27) -> `alert_events`
 (1:many) -- one generic rule table covering all 8 alert types via a
 `rule_type` enum rather than eight near-identical tables, see ADR 0010.
+`users` -> `paper_accounts` (1:1, Phase 28) -> `paper_holdings` /
+`paper_transactions` -- wholly separate from `portfolios`/`holdings`/
+`transactions`, never joined to or mutating them, see ADR 0011.
 
 See `backend/app/models/*.py` for exact columns; relationships use
 SQLAlchemy 2.0 typed `Mapped[...]` declarations with cascading deletes.
 Schema changes go through Alembic (`backend/alembic/`) as of Phase 4 —
 `Base.metadata.create_all()` is no longer used anywhere.
 
-## API routes (11 route modules)
+## API routes (12 route modules)
 
 | Module | Mounted at | Auth | Notes |
 |---|---|---|---|
@@ -135,6 +139,7 @@ Schema changes go through Alembic (`backend/alembic/`) as of Phase 4 —
 | `market.py` | `/market`, `/ws/market` | required (JWT as `?token=` on the WS) | status poll, intraday candles, push feed (Phase 24/25) |
 | `screener.py` | `/screener` | **none** | fundamental + technical stock screener (Phase 26) |
 | `alerts.py` | `/alerts` | required | configurable alert rules + triggered events, user-scoped (Phase 27) |
+| `paper_trading.py` | `/paper-trading` | required | hypothetical account: buy/sell, holdings, transactions, performance (Phase 28) |
 
 Full request/response shapes: `API_CONTRACT.md`.
 
@@ -229,6 +234,7 @@ frontend/src/
                  #   StockDetail (+ live price/intraday chart, Phase 25;
                  #   + Fundamentals tab, Phase 26), Screener (Phase 26),
                  #   Alerts (rule builder + triggered-event feed, Phase 27),
+                 #   PaperTrading (hypothetical buy/sell + performance, Phase 28),
                  #   Discover, Intelligence (risk + risk attribution),
                  #   PortfolioFit (+ compare/counterfactual, Phase 20),
                  #   PortfolioLab (What-If + Optimization tabs, Phase 20)
@@ -239,14 +245,15 @@ frontend/src/
                  #   the one hook that does NOT follow useAsync's fetch-once
                  #   model, since /ws/market is a push feed, not a request)
   types/         # TypeScript interfaces mirroring API_CONTRACT.md
-  charts/        # Recharts wrapper components (incl. IntradayChart, Phase 25)
+  charts/        # Recharts wrapper components (incl. IntradayChart, Phase 25;
+                 #   PaperPerformanceChart, Phase 28)
   utils/         # formatting helpers (currency, percent, date)
   test/          # Vitest setup (Phase 21)
 ```
 
-55 Vitest + React Testing Library tests cover `utils/format.ts`,
+59 Vitest + React Testing Library tests cover `utils/format.ts`,
 `useMarketFeed`, and smoke-level rendering (loading/error/data states,
-form submission) of the Phase 20, 25, 26, and 27 UI.
+form submission) of the Phase 20, 25, 26, 27, and 28 UI.
 
 ## Security (Phase 21)
 

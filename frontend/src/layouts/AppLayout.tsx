@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { to: '/stocks', label: 'Stocks', icon: StocksIcon },
   { to: '/screener', label: 'Screener', icon: ScreenerIcon },
   { to: '/alerts', label: 'Alerts', icon: AlertsIcon },
+  { to: '/paper-trading', label: 'Paper Trading', icon: PaperTradingIcon },
   { to: '/discover', label: 'Discover', icon: DiscoverIcon },
   { to: '/intelligence', label: 'Portfolio Intelligence', icon: IntelligenceIcon },
   { to: '/portfolio/lab', label: 'Portfolio Lab', icon: LabIcon },
@@ -175,6 +176,13 @@ function ScreenerIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...iconBase(props)}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 5h16M7 10h10M10 15h4" />
+    </svg>
+  );
+}
+function PaperTradingIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...iconBase(props)}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 19h16M4 19V9l4-3 4 3 4-5 4 4v11" />
     </svg>
   );
 }
