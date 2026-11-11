@@ -58,6 +58,9 @@ to `requirements.txt` / `package.json`.
 | **sniffio** (transitive, via anthropic) | 1.3.1 | MIT OR Apache-2.0 | Phase 19 | Async library detection, anthropic SDK dependency |
 | **slowapi** | 0.1.10 | MIT | Phase 21 | Per-client-IP rate limiting on `/auth/login`, `/auth/register`, and `/assistant/ask` (see `docs/security-review.md`) |
 | **limits** (transitive, via slowapi) | 5.8.0 | MIT | Phase 21 | Rate-limit storage/window backend, slowapi dependency |
+| **requests** | 2.34.2 | Apache-2.0 | Phase 24 (promoted from transitive-via-yfinance to an explicit direct dependency) | Angel One REST auth (`angelone_auth.py`) and the local instrument-fetch script |
+| **websockets** | 17.4 | BSD-3-Clause | Phase 24 | Async WebSocket client for the Angel One real-time feed (`angelone_ws_client.py`, `ws_connection_manager.py`) -- chosen over the official `smartapi-python` SDK, which declares no license on PyPI or in its GitHub repo (checked, not found); see ADR 0008 |
+| **pyotp** | 2.10.0 | MIT | Phase 24 | Generates TOTP codes for the Angel One login flow (`angelone_auth.py`) |
 
 All Phase 9 transitive dependencies checked individually — all permissive
 (MIT/Apache-2.0/BSD-3-Clause), no copyleft. None are pinned in

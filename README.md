@@ -33,7 +33,7 @@ model-based estimates and are not guaranteed financial advice.
 - **NLP**: Hugging Face Transformers / FinBERT (optional, see below), with a
   lexicon-based sentiment provider as the offline default
 - **AI assistant**: Anthropic Claude API (retrieval-and-cite only — see `docs/methodology.md` Section 16)
-- **Testing**: pytest (backend, 233 tests), Vitest (frontend, 37 tests)
+- **Testing**: pytest (backend, 293 tests), Vitest (frontend, 37 tests)
 - **Deployment**: Docker Compose (see `docs/DEPLOYMENT.md`)
 
 ## Project structure
@@ -83,7 +83,7 @@ Backend now running at http://localhost:8000 (interactive docs at `/docs`).
 Run tests (with the backend's venv active, DB seeded, and the server importable):
 
 ```bash
-python -m pytest app/tests/ -v   # 233 tests
+python -m pytest app/tests/ -v   # 293 tests
 ```
 
 ### Demo login
@@ -185,6 +185,14 @@ the full provider-abstraction pattern.
   and rate limiting on auth/assistant endpoints.
 - **Deployment** (Phase 22): Docker Compose for the full stack -- see
   `docs/DEPLOYMENT.md` for exactly what has and hasn't been verified end-to-end.
+- **Real-Time Market Data** (Phase 24): a 20-symbol NSE watchlist backed by
+  Angel One SmartAPI (a push-based WebSocket feed, reconnect/heartbeat/
+  staleness-aware, fanned out to the frontend via `/ws/market`), with an
+  explicit `LIVE | DELAYED | STALE | CLOSED | FIXTURE | UNAVAILABLE` status
+  on every price shown. Disabled by default (`ENABLE_REALTIME_FEED=false`);
+  see `docs/adr/0008-realtime-market-data-angelone.md` for the provider
+  comparison, what's verified vs. not, and the personal-use licensing
+  constraint that applies to every broker API evaluated.
 
 ## Known limitations (honestly, and extended every phase)
 

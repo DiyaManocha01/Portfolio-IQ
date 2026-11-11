@@ -35,8 +35,8 @@ backend/
   app/
     api/
       deps.py              # auth deps (get_current_user, get_current_portfolio)
-      routes/               # auth, portfolio, stocks, discover, portfolio_fit, ledger, assistant
-    models/                 # SQLAlchemy ORM models (13 tables, see below)
+      routes/               # auth, portfolio, stocks, discover, portfolio_fit, ledger, assistant, market
+    models/                 # SQLAlchemy ORM models (14 tables, see below)
     schemas/                # Pydantic request/response models
     services/
       security.py           # password hashing + JWT (PyJWT, Phase 21)
@@ -49,6 +49,16 @@ backend/
         service.py            # MarketDataService: caching layer over a provider
         cache.py               # Parquet cache + OHLCV validation (Phase 4)
         nifty100.py             # symbol universe
+        watchlist.py             # Phase 24 real-time watchlist (20 NSE symbols)
+        session_calendar.py       # NSE trading-hours/holiday status (Phase 24)
+        tick_normalizer.py         # provider dict -> NormalizedTick + TickStatus (Phase 24)
+        live_cache.py                # in-process latest-tick-per-symbol cache (Phase 24)
+        instrument_registry.py        # symbol -> broker instrument token resolution (Phase 24)
+        angelone_auth.py                # Angel One REST login/refresh (Phase 24)
+        angelone_ws_client.py            # Angel One WS 2.0 wire protocol (Phase 24)
+        ws_connection_manager.py           # owns the one upstream broker connection (Phase 24)
+        fixture_replay_provider.py          # FIXTURE-tagged cache fill with no broker feed (Phase 24)
+        snapshot_service.py                  # periodic live_cache -> intraday_candles (Phase 24)
       news/
         rss_feeds.py           # Economic Times / Moneycontrol feed list (Phase 7)
         matching.py             # headline-to-stock regex matching
@@ -83,27 +93,31 @@ backend/
     data/
       seed.py                 # dev seed script: stocks, market data, news, demo user, trains ML
       models/                  # trained model artifacts (joblib) + metadata.json, gitignored
-    tests/                    # pytest suite, 233 tests
+    tests/                    # pytest suite, 293 tests
   Dockerfile                  # multi-stage build (Phase 22)
   docker-entrypoint.sh         # migrate -> seed/train (once) -> uvicorn (Phase 22)
 ```
 
-## Database schema (13 tables)
+## Database schema (14 tables)
 
 `users` -> `user_profiles` (1:1), `users` -> `portfolios` (1:many) ->
 `holdings` / `transactions` / `portfolio_scores`. `holdings`/`transactions`
 reference `stocks`, which own `market_data`, `financial_metrics`,
-`predictions`, and (optionally) `news` -> `news_sentiment` (1:1).
-`predictions` feed `prediction_ledger` (Phase 18, append-only, DB-trigger-
-enforced — see `methodology.md` Section 15), which stands somewhat apart
-from the rest: it is intentionally written once and never updated.
+`predictions`, `intraday_candles` (Phase 24), and (optionally) `news` ->
+`news_sentiment` (1:1). `predictions` feed `prediction_ledger` (Phase 18,
+append-only, DB-trigger-enforced — see `methodology.md` Section 15), which
+stands somewhat apart from the rest: it is intentionally written once and
+never updated. `intraday_candles` is a separate table from `market_data`
+(unique on `(stock_id, timestamp)` rather than `market_data`'s
+`(stock_id, date)`) — see ADR 0008 for why it isn't a widened
+`market_data`.
 
 See `backend/app/models/*.py` for exact columns; relationships use
 SQLAlchemy 2.0 typed `Mapped[...]` declarations with cascading deletes.
 Schema changes go through Alembic (`backend/alembic/`) as of Phase 4 —
 `Base.metadata.create_all()` is no longer used anywhere.
 
-## API routes (7 route modules)
+## API routes (8 route modules)
 
 | Module | Mounted at | Auth | Notes |
 |---|---|---|---|
@@ -114,6 +128,7 @@ Schema changes go through Alembic (`backend/alembic/`) as of Phase 4 —
 | `portfolio_fit.py` | `/portfolio-fit` | required | fit breakdown, compare, counterfactual |
 | `ledger.py` | `/ledger` | **none** | the one deliberately public surface (Phase 18) |
 | `assistant.py` | `/assistant` | required | rate-limited (Phase 21) |
+| `market.py` | `/market`, `/ws/market` | required (JWT as `?token=` on the WS) | real-time status poll + push feed (Phase 24) |
 
 Full request/response shapes: `API_CONTRACT.md`.
 
@@ -138,6 +153,32 @@ can be dropped in without touching calling code:
 
 Every response that depends on one of these carries a `data_source` /
 `model_used` field so the frontend can label it honestly.
+
+## Real-time market data (Phase 24)
+
+A third, push-based path alongside the two pull-based providers above:
+
+```
+ws_connection_manager.py  (asyncio bg task, the ONE upstream Angel One
+                            connection; reconnect/backoff/heartbeat/dedup)
+        -> tick_normalizer.py (provider dict -> NormalizedTick + TickStatus)
+        -> live_cache.py (in-process, lock-guarded, latest tick/symbol)
+                -> GET /market/status (REST poll)
+                -> WS  /ws/market (per-client push loop, ~1s)
+                -> snapshot_service.py -> intraday_candles (periodic, market hours only)
+
+fixture_replay_provider.py writes the SAME live_cache (tagged FIXTURE)
+whenever the real feed isn't connected -- this is the default (
+ENABLE_REALTIME_FEED=false), so /market/status and /ws/market work with
+zero broker setup, always honestly labeled.
+```
+
+`instrument_registry.py` resolves the Phase 24 watchlist
+(`app/services/market_data/watchlist.py`, 20 NSE symbols) against Angel
+One's official scrip master, fetched locally via
+`scripts/fetch_angelone_instruments.py` (never fabricates a token for an
+unresolved symbol). Full rationale, provider comparison, and
+verified-vs-not status: `docs/adr/0008-realtime-market-data-angelone.md`.
 
 ## ML pipeline
 

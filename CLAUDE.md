@@ -105,6 +105,15 @@ alembic upgrade head
 python scripts/fetch_nifty100.py                 # full universe, 3y
 python scripts/fetch_nifty100.py --out-fixture    # also writes committed test fixture
 
+# Resolve the Phase 24 real-time watchlist against Angel One's scrip master
+# (run on a machine with real internet access — this sandbox cannot reach
+# any Angel One host, verified). Writes backend/app/data/angelone_instruments.json.
+python scripts/fetch_angelone_instruments.py
+
+# Enable the real-time feed (requires your own Angel One account + API
+# access; set ANGELONE_* in backend/.env first, never commit real values).
+# ENABLE_REALTIME_FEED=true in backend/.env
+
 # Frontend
 cd frontend
 npm install

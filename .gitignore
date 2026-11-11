@@ -28,6 +28,11 @@ backend/app/data/finbert_eval_results.csv
 # Backtest output (regeneratable via scripts/run_backtest.py)
 backend/app/data/backtests/
 
+# Angel One instrument tokens (regeneratable locally via
+# scripts/fetch_angelone_instruments.py; the small hand-written test
+# fixture under app/tests/fixtures/ IS committed)
+backend/app/data/angelone_instruments.json
+
 # Node / frontend
 frontend/node_modules/
 frontend/dist/

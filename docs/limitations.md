@@ -23,6 +23,59 @@ UI, the methodology doc, or a future paper, it's listed here.
   either (Phase 7). `scripts/fetch_news_rss.py` has never been run here;
   all news shown by the running app in this environment is the synthetic
   template generator (`USE_LIVE_NEWS=false`, the default).
+- **No access to any Angel One host from this sandbox** (Phase 24):
+  `apiconnect.angelbroking.com`, `smartapi.angelbroking.com`,
+  `margincalculator.angelbroking.com`, and
+  `smartapisocket.angelone.in` are all rejected by the egress proxy
+  (verified). See `docs/adr/0008-realtime-market-data-angelone.md` for
+  exactly what that means was/wasn't verified.
+
+## Real-Time Market Data (Phase 24)
+
+- **Angel One WebSocket binary tick layout is unverified against a real
+  frame.** `angelone_ws_client.parse_tick()`'s byte offsets are built from
+  Angel One's publicly documented WS 2.0 "Quote" format, never tested
+  against a live stream (network blocked here). It's only proven
+  self-consistent (pack/unpack with the same offsets round-trips) — not
+  proven to match the real wire format. Verify with real credentials
+  before trusting it in a demo: log a few raw frames and sanity-check the
+  decoded price/token/timestamp.
+- **The scrip-master URL in `scripts/fetch_angelone_instruments.py` is
+  community-forum-sourced, not found in Angel One's official docs**, and
+  that endpoint has reported reliability issues in forum threads
+  (intermittent null responses after Angel One's nightly rebuild). If the
+  script fails, retry after a few minutes before assuming it's broken.
+- **NSE holiday calendar ships empty.** `session_calendar.NSE_HOLIDAYS`
+  is deliberately an empty set — this sandbox can't reach nseindia.com,
+  and a web search for "NSE holidays 2026" turned up only third-party
+  sites that disagree with each other on several dates. Weekday + hours
+  logic (9:15–15:30 IST, Mon–Fri) is correct; holiday-awareness is not,
+  until that set is populated from NSE's official published circular.
+  Until then, `/market/status` will report `OPEN` on an NSE holiday that
+  falls on a weekday.
+- **This is a personal-use integration, not a licensed multi-tenant data
+  feed.** The running system streams from the project owner's own Angel
+  One account. All four evaluated broker APIs (Zerodha, Upstox, DhanHQ,
+  Angel One) license data to the account holder's own consumption; none
+  license redistributing live data to other end users of a built app
+  without separate exchange approval (see ADR 0008). Never present or
+  demo this as "any signed-up user gets live broker data."
+- **11 of the 20 Phase 24 watchlist symbols still use
+  `DevSampleProvider`'s generic fallback price/sector** (base price
+  1000.0, sector "Unknown") in the non-real-time code paths — a
+  pre-existing Phase 4/5 gap (`providers.py`'s `BASE_PRICES`/`SECTORS`
+  dicts only cover 13 symbols), not something Phase 24 changed. Only
+  RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK, LT, ITC, HINDUNILVR,
+  BHARTIARTL, SBIN, WIPRO, MARUTI, SUNPHARMA have hand-tuned synthetic
+  calibration today.
+- **The real-time feed has never run end-to-end.** `ENABLE_REALTIME_FEED`
+  defaults to `false`; turning it on requires the project owner's own
+  Angel One credentials in a local `.env` (never committed) and running
+  `scripts/fetch_angelone_instruments.py` once with real internet access.
+  Until then, `/market/status` and `/ws/market` serve honestly-labeled
+  `FIXTURE` data (from `fixture_replay_provider.py`, which exposes the
+  same number `MarketDataService.get_quote()` already returns — never a
+  fabricated "live" movement).
 
 ## News & Sentiment (Phase 7)
 

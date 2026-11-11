@@ -1,0 +1,18 @@
+{
+  "_NOTE": "Hand-written TEST-ONLY fixture for instrument_registry tests. These symboltoken values are made up (NOT the real Angel One tokens) -- never use this file outside tests. Real tokens come only from scripts/fetch_angelone_instruments.py run against Angel One's live scrip master.",
+  "RELIANCE": {
+    "exchange": "NSE",
+    "tradingsymbol": "RELIANCE-EQ",
+    "symboltoken": "TEST-0001"
+  },
+  "TCS": {
+    "exchange": "NSE",
+    "tradingsymbol": "TCS-EQ",
+    "symboltoken": "TEST-0002"
+  },
+  "INFY": {
+    "exchange": "NSE",
+    "tradingsymbol": "INFY-EQ",
+    "symboltoken": "TEST-0003"
+  }
+}

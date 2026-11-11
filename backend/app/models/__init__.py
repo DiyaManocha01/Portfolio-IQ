@@ -4,6 +4,7 @@ from app.models.portfolio import Portfolio, Holding, Transaction, TransactionTyp
 from app.models.news import News, NewsSentiment, SentimentLabel
 from app.models.prediction import Prediction, Direction, Confidence
 from app.models.prediction_ledger import PredictionLedgerEntry, LedgerEntryType
+from app.models.intraday_candle import IntradayCandle, CandleStatus
 
 __all__ = [
     "User",
@@ -26,4 +27,6 @@ __all__ = [
     "Confidence",
     "PredictionLedgerEntry",
     "LedgerEntryType",
+    "IntradayCandle",
+    "CandleStatus",
 ]

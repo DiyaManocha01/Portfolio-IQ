@@ -14,6 +14,18 @@ class Settings(BaseSettings):
     USE_LIVE_MARKET_DATA: bool = False
     MARKET_DATA_API_KEY: str = ""
 
+    # --- Phase 24: real-time market data (Angel One SmartAPI) ---
+    # When false (default), no broker WebSocket connection is attempted and
+    # /market/* endpoints report UNAVAILABLE rather than failing -- this
+    # keeps the app's existing behavior unchanged for anyone who hasn't set
+    # up broker credentials. Never set these in committed files; they belong
+    # in a local, gitignored .env only. See docs/adr/0008-realtime-market-data-angelone.md.
+    ENABLE_REALTIME_FEED: bool = False
+    ANGELONE_API_KEY: str = ""
+    ANGELONE_CLIENT_CODE: str = ""
+    ANGELONE_PASSWORD: str = ""
+    ANGELONE_TOTP_SECRET: str = ""
+
     USE_FINBERT: bool = False
     USE_LIVE_NEWS: bool = False
     NEWS_API_KEY: str = ""
