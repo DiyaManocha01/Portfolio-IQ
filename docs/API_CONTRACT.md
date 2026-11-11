@@ -421,7 +421,9 @@ drill into `/portfolio-fit/{symbol}` for the full breakdown.
     { "name": "ML Outlook", "contribution": -0.277, "raw_value": -0.0043, "z_score": -1.109, "explanation": "..." }
   ],
   "strengths": ["..."], "concerns": ["..."],
-  "weights_used": { "outlook": 0.25, "sentiment": 0.15, "risk_delta": 0.2, "diversification_delta": 0.25, "concentration_delta": 0.15 }
+  "weights_used": { "outlook": 0.25, "sentiment": 0.15, "risk_delta": 0.2, "diversification_delta": 0.25, "concentration_delta": 0.15 },
+  "change": null,
+  "cached": false
 }
 ```
 `factors` is sorted by contribution descending -- render as a
@@ -439,6 +441,20 @@ tolerance if not given; unknown `preset` values return 400. **The same
 symbol's `fit_score` can legitimately differ between this endpoint and
 `/discover`** -- each z-scores against a different population (full
 universe vs. the candidate batch) -- see Section 7.3.
+
+**`change` / `cached` (Phase 29, see ADR 0012):** the result is cached
+against a fingerprint of everything it depends on (latest price date,
+model version, sentiment score, portfolio composition). `cached: true`
+means nothing relevant has changed since the last call and this is the
+stored result, not a fresh computation. `change` is `null` on a cache
+hit, on the very first computation ever for this `(portfolio, stock,
+preset)`, or if the score rounds to the same display value -- otherwise
+it explains the move:
+```json
+{ "score_delta": 2.3, "biggest_factor": "ML Outlook", "biggest_factor_delta": 0.041,
+  "message": "Fit score improved by 2.3 points since the last check, mainly because ML Outlook became more favorable.",
+  "previous_computed_at": "2026-11-11T09:00:00+00:00" }
+```
 
 ---
 

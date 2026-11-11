@@ -159,6 +159,19 @@ class PortfolioFitFactor(BaseModel):
     z_score: float
 
 
+class FitScoreChange(BaseModel):
+    """Phase 29: why the fit score moved since the previous time it was
+    computed for this (portfolio, stock, preset). Absent (None) when
+    nothing relevant has changed since the last check, or when this is
+    the first time it's ever been computed."""
+
+    score_delta: float
+    biggest_factor: str | None
+    biggest_factor_delta: float
+    message: str
+    previous_computed_at: str
+
+
 class PortfolioFitOut(BaseModel):
     symbol: str
     name: str
@@ -168,6 +181,8 @@ class PortfolioFitOut(BaseModel):
     strengths: list[str]
     concerns: list[str]
     weights_used: dict[str, float]
+    change: FitScoreChange | None = None
+    cached: bool = False
 
 
 class FitTermDelta(BaseModel):

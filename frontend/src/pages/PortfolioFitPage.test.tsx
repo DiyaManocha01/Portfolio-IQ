@@ -34,6 +34,8 @@ beforeEach(() => {
     strengths: ['Diversifies away from current holdings.'],
     concerns: [],
     weights_used: { outlook: 0.25 },
+    change: null,
+    cached: false,
   });
   mockedGetStocks.mockResolvedValue([
     { id: 1, symbol: 'TCS', name: 'Tata Consultancy Services', sector: 'IT', industry: 'IT Services', exchange: 'NSE' },
@@ -46,6 +48,30 @@ describe('PortfolioFitPage - Compare to Another Stock', () => {
     renderFitPage();
     expect(await screen.findByText('Compare to Another Stock')).toBeInTheDocument();
     expect(screen.getByText('What Would Improve This Fit?')).toBeInTheDocument();
+  });
+
+  it('renders the change explanation when the fit score has moved since the last check', async () => {
+    mockedGetPortfolioFit.mockResolvedValue({
+      symbol: 'TCS',
+      name: 'Tata Consultancy Services',
+      fit_score: 82,
+      factors: [{ name: 'ML Outlook', contribution: 0.2, explanation: 'Model outlook is positive.' }],
+      strengths: ['Diversifies away from current holdings.'],
+      concerns: [],
+      weights_used: { outlook: 0.25 },
+      change: {
+        score_delta: 2,
+        biggest_factor: 'ML Outlook',
+        biggest_factor_delta: 0.05,
+        message: 'Fit score improved by 2.0 points since the last check, mainly because ML Outlook became more favorable.',
+        previous_computed_at: '2026-11-11T09:00:00Z',
+      },
+      cached: false,
+    });
+    renderFitPage();
+    expect(
+      await screen.findByText('Fit score improved by 2.0 points since the last check, mainly because ML Outlook became more favorable.')
+    ).toBeInTheDocument();
   });
 
   it('disables Compare until a stock is selected, then renders the comparison', async () => {

@@ -5,7 +5,9 @@ metric a service already owns:
   - price/volume/RSI: app/services/analytics.py + MarketDataService
   - sentiment: app/services/news_service.py's get_sentiment_summary
   - portfolio volatility / sector concentration: app/portfolio/risk_service.py
-  - Fit Engine score: app/portfolio/fit_service.py
+  - Fit Engine score: app/portfolio/fit_snapshot_service.py (Phase 29's
+    cached/change-aware wrapper around app/portfolio/fit_service.py --
+    this is exactly the repeated-polling case that caching was added for)
 
 Dedup ("avoid excessive notifications," required by Phase 27's scope):
   - PRICE_THRESHOLD / RSI_THRESHOLD ("crossing" types): fire only when the
@@ -138,13 +140,17 @@ def _eval_sector_concentration_change(db: Session, rule: AlertRule) -> tuple[flo
 
 
 def _eval_fit_ranking_change(db: Session, rule: AlertRule) -> tuple[float, str] | None:
-    from app.portfolio.fit_service import PortfolioFitService, default_preset_for
+    from app.portfolio.fit_service import default_preset_for
+    from app.portfolio.fit_snapshot_service import get_fit_with_change
 
     portfolio = _get_user_portfolio(db, rule.user_id)
     if portfolio is None:
         return None
     preset = default_preset_for(portfolio)
-    fit = PortfolioFitService(db, preset=preset).compute_fit(rule.stock, portfolio)
+    # Phase 29: cached/change-aware, so this doesn't recompute the full Fit
+    # Engine (ML prediction + sentiment + hypothetical risk simulation)
+    # every ~30s tick for every enabled rule when nothing has changed.
+    fit = get_fit_with_change(db, portfolio, rule.stock, preset=preset)
     current = fit["fit_score"]
     delta = current - (rule.last_value if rule.last_value is not None else current)
     message = f"{rule.stock.symbol}'s Portfolio Fit score shifted by {delta:+.1f} points since the last check (now {current:.1f})"

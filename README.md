@@ -33,7 +33,7 @@ model-based estimates and are not guaranteed financial advice.
 - **NLP**: Hugging Face Transformers / FinBERT (optional, see below), with a
   lexicon-based sentiment provider as the offline default
 - **AI assistant**: Anthropic Claude API (retrieval-and-cite only — see `docs/methodology.md` Section 16)
-- **Testing**: pytest (backend, 352 tests), Vitest (frontend, 59 tests)
+- **Testing**: pytest (backend, 360 tests), Vitest (frontend, 60 tests)
 - **Deployment**: Docker Compose (see `docs/DEPLOYMENT.md`)
 
 ## Project structure
@@ -83,7 +83,7 @@ Backend now running at http://localhost:8000 (interactive docs at `/docs`).
 Run tests (with the backend's venv active, DB seeded, and the server importable):
 
 ```bash
-python -m pytest app/tests/ -v   # 352 tests
+python -m pytest app/tests/ -v   # 360 tests
 ```
 
 ### Demo login
@@ -110,7 +110,7 @@ Frontend now running at http://localhost:5173 (Vite default).
 Run frontend tests:
 
 ```bash
-npm test   # 59 tests (Vitest + React Testing Library)
+npm test   # 60 tests (Vitest + React Testing Library)
 ```
 
 ## Data sources: LIVE vs DEVELOPMENT SAMPLE
@@ -218,6 +218,15 @@ the full provider-abstraction pattern.
   performance chart vs. a NIFTY 50 buy-and-hold benchmark, and a reset
   action -- wholly separate tables from the real portfolio, never
   touching it. See `docs/adr/0011-paper-trading.md`.
+- **Dynamic Portfolio Fit Engine** (Phase 29): Fit Engine results are
+  cached against a fingerprint of everything they depend on (price date,
+  model version, sentiment, portfolio composition), so a request with
+  nothing changed is served from cache instead of recomputing the full
+  ML + sentiment + covariance pipeline -- and a genuine change comes
+  back with a plain-language explanation of which factor moved the
+  most. This is what the `FIT_RANKING_CHANGE` alert evaluator (Phase 27)
+  now uses instead of recomputing on every ~30s tick. See
+  `docs/adr/0012-dynamic-fit-engine.md`.
 
 ## Known limitations (honestly, and extended every phase)
 

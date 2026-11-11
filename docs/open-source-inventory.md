@@ -104,3 +104,7 @@ introducing a separate fundamentals API, per ADR 0009.
 reuses `MarketDataService` (Phase 4/24) for execution prices,
 `estimate_indian_trade_cost` (Phase 11) for fees, and `pandas` (already
 vetted) for the performance series, per ADR 0011.
+
+**Phase 29 note:** no new dependencies were added -- the Dynamic Fit
+Engine's caching uses Python's standard-library `hashlib` and `json`
+plus the existing `PortfolioFitService` (Phase 10), per ADR 0012.

@@ -39,6 +39,17 @@ export default function PortfolioFitPage() {
                 current portfolio composition.
               </div>
             </div>
+            {fit.data.change && (
+              <p
+                className={
+                  fit.data.change.score_delta >= 0
+                    ? 'mt-4 text-sm text-positive'
+                    : 'mt-4 text-sm text-negative'
+                }
+              >
+                {fit.data.change.message}
+              </p>
+            )}
           </div>
 
           <Card title="Fit Factor Breakdown" subtitle="Contribution of each factor to the overall fit score, sorted by impact">

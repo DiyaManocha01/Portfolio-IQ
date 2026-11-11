@@ -152,6 +152,30 @@ UI, the methodology doc, or a future paper, it's listed here.
   match while a position is open.** This is intentional, not a bug --
   see ADR 0011 for the fee-drag reasoning.
 
+## Dynamic Portfolio Fit Engine (Phase 29)
+
+- **`fit_score_snapshots` grows unboundedly.** Every cache miss writes a
+  new row and none are ever pruned -- fine for this project's scope and
+  timeframe, not something a long-running production deployment would
+  leave unaddressed.
+- **The change explanation names one factor, not the full picture.**
+  `_explain_change` reports only the single factor whose contribution
+  shifted the most; a move driven by several factors moving together in
+  the same direction will still be attributed to just the largest one.
+  The full per-factor breakdown remains available in `factors` for
+  anyone who wants it.
+- **`/discover`'s batch ranking is not cached, by design.** Caching it
+  would require caching raw per-term values separately from the final
+  z-scored result (batch z-scoring recomputes mean/std across whatever
+  candidates are in the batch), which is a genuinely different design
+  than the single-stock cache this phase built -- out of scope here, see
+  ADR 0012.
+- **No cache hit or miss in this sandbox has ever been driven by a real
+  market change.** The fingerprint depends on the stock's latest price
+  date and the ML model's version; this environment's price data and
+  model are only as fresh as whatever was last seeded/trained here, not
+  live. See the Phase 4/24 limitations above for why.
+
 ## News & Sentiment (Phase 7)
 
 - **Headline-to-stock matching is unvalidated.** `services/news/matching.py`

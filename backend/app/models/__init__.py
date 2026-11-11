@@ -7,6 +7,7 @@ from app.models.prediction_ledger import PredictionLedgerEntry, LedgerEntryType
 from app.models.intraday_candle import IntradayCandle, CandleStatus
 from app.models.alert import AlertRule, AlertRuleType, AlertDirection, AlertEvent
 from app.models.paper_trading import PaperAccount, PaperHolding, PaperTransaction
+from app.models.fit_snapshot import FitScoreSnapshot
 
 __all__ = [
     "User",
@@ -38,4 +39,5 @@ __all__ = [
     "PaperAccount",
     "PaperHolding",
     "PaperTransaction",
+    "FitScoreSnapshot",
 ]

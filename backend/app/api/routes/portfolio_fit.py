@@ -5,10 +5,12 @@ from app.api.deps import get_current_portfolio
 from app.database.session import get_db
 from app.models.portfolio import Portfolio
 from app.portfolio.fit_counterfactual_service import FitCounterfactualService
-from app.portfolio.fit_service import PRESETS, PortfolioFitService, default_preset_for
+from app.portfolio.fit_service import PRESETS, default_preset_for
+from app.portfolio.fit_snapshot_service import get_fit_with_change
 from app.schemas.portfolio import (
     FitCounterfactual,
     FitRankingGap,
+    FitScoreChange,
     FitTermDelta,
     FitTermScenario,
     PortfolioFitFactor,
@@ -34,7 +36,7 @@ def portfolio_fit(
     market_data.get_history(stock)
 
     chosen_preset = preset or default_preset_for(portfolio)
-    fit = PortfolioFitService(db, preset=chosen_preset).compute_fit(stock, portfolio)
+    fit = get_fit_with_change(db, portfolio, stock, preset=chosen_preset)
     return PortfolioFitOut(
         symbol=fit["symbol"],
         name=fit["name"],
@@ -44,6 +46,8 @@ def portfolio_fit(
         strengths=fit["strengths"],
         concerns=fit["concerns"],
         weights_used=fit["weights_used"],
+        change=FitScoreChange(**fit["change"]) if fit["change"] else None,
+        cached=fit["cached"],
     )
 
 

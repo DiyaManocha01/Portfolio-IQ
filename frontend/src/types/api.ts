@@ -224,6 +224,14 @@ export interface FitFactor {
   explanation: string;
 }
 
+export interface FitScoreChange {
+  score_delta: number;
+  biggest_factor: string | null;
+  biggest_factor_delta: number;
+  message: string;
+  previous_computed_at: string;
+}
+
 export interface PortfolioFit {
   symbol: string;
   name: string;
@@ -232,6 +240,8 @@ export interface PortfolioFit {
   strengths: string[];
   concerns: string[];
   weights_used: Record<string, number>;
+  change: FitScoreChange | null;
+  cached: boolean;
 }
 
 export interface ApiError {

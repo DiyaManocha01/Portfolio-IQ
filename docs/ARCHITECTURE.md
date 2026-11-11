@@ -90,18 +90,19 @@ backend/
       scenario_parser.py                # regex scenario-text -> structured shock params (Phase 15)
       fit_counterfactual_service.py      # "why A > B" / "what would improve this" (Phase 16)
       paper_trading_service.py            # hypothetical account: buy/sell, valuation, performance (Phase 28)
+      fit_snapshot_service.py              # caches a Fit result, explains why it moved (Phase 29)
     assistant/
       context_builder.py       # deterministic keyword-based data router (Phase 19)
       assistant_service.py      # system prompt, Claude API call, guardrail filter (Phase 19)
     data/
       seed.py                 # dev seed script: stocks, market data, news, demo user, trains ML
       models/                  # trained model artifacts (joblib) + metadata.json, gitignored
-    tests/                    # pytest suite, 352 tests
+    tests/                    # pytest suite, 360 tests
   Dockerfile                  # multi-stage build (Phase 22)
   docker-entrypoint.sh         # migrate -> seed/train (once) -> uvicorn (Phase 22)
 ```
 
-## Database schema (19 tables)
+## Database schema (20 tables)
 
 `users` -> `user_profiles` (1:1), `users` -> `portfolios` (1:many) ->
 `holdings` / `transactions` / `portfolio_scores`. `holdings`/`transactions`
@@ -119,6 +120,10 @@ never updated. `intraday_candles` is a separate table from `market_data`
 `users` -> `paper_accounts` (1:1, Phase 28) -> `paper_holdings` /
 `paper_transactions` -- wholly separate from `portfolios`/`holdings`/
 `transactions`, never joined to or mutating them, see ADR 0011.
+`fit_score_snapshots` (Phase 29) is an append-only cache of Fit Engine
+results keyed by `(portfolio_id, stock_id, preset)`, written once per
+recompute and never updated -- this is what lets a later request
+explain how a score changed, not just what it is now. See ADR 0012.
 
 See `backend/app/models/*.py` for exact columns; relationships use
 SQLAlchemy 2.0 typed `Mapped[...]` declarations with cascading deletes.
@@ -224,6 +229,19 @@ exactly computable (not approximated): why one candidate outranks
 another, and what a single term would need to become to close a gap to a
 target. Full formula: `methodology.md` Section 7.
 
+Phase 29 wraps the single-stock path (`compute_fit`) in
+`fit_snapshot_service.py`: a result is cached against a fingerprint of
+everything it actually depends on (latest price date, model version,
+sentiment score, portfolio composition), so a request with nothing
+relevant changed is served from `fit_score_snapshots` instead of
+recomputed, and a genuine change comes back with a plain-language
+explanation of which factor moved the most. This is wired into
+`GET /portfolio-fit/{symbol}` (additive `change`/`cached` fields) and,
+more importantly, into the `FIT_RANKING_CHANGE` alert evaluator (Phase
+27), which previously recomputed the full pipeline on every ~30s
+background tick regardless of whether anything had changed. `/discover`'s
+batch ranking is deliberately left uncached -- see ADR 0012.
+
 ## Frontend layout
 
 ```
@@ -251,9 +269,9 @@ frontend/src/
   test/          # Vitest setup (Phase 21)
 ```
 
-59 Vitest + React Testing Library tests cover `utils/format.ts`,
+60 Vitest + React Testing Library tests cover `utils/format.ts`,
 `useMarketFeed`, and smoke-level rendering (loading/error/data states,
-form submission) of the Phase 20, 25, 26, 27, and 28 UI.
+form submission) of the Phase 20, 25, 26, 27, 28, and 29 UI.
 
 ## Security (Phase 21)
 
