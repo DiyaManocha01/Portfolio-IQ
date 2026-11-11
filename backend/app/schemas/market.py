@@ -25,3 +25,18 @@ class MarketStatusOut(BaseModel):
     feed_status: str  # the WS connection manager's own status, or "DISABLED"/"FIXTURE_ONLY"
     server_time: datetime
     ticks: list[TickOut]
+
+
+class CandleOut(BaseModel):
+    timestamp: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+    status: str
+
+
+class CandlesOut(BaseModel):
+    symbol: str
+    candles: list[CandleOut]

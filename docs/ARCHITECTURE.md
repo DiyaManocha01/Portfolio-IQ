@@ -128,7 +128,7 @@ Schema changes go through Alembic (`backend/alembic/`) as of Phase 4 —
 | `portfolio_fit.py` | `/portfolio-fit` | required | fit breakdown, compare, counterfactual |
 | `ledger.py` | `/ledger` | **none** | the one deliberately public surface (Phase 18) |
 | `assistant.py` | `/assistant` | required | rate-limited (Phase 21) |
-| `market.py` | `/market`, `/ws/market` | required (JWT as `?token=` on the WS) | real-time status poll + push feed (Phase 24) |
+| `market.py` | `/market`, `/ws/market` | required (JWT as `?token=` on the WS) | status poll, intraday candles, push feed (Phase 24/25) |
 
 Full request/response shapes: `API_CONTRACT.md`.
 
@@ -216,22 +216,26 @@ target. Full formula: `methodology.md` Section 7.
 frontend/src/
   components/   # shared UI pieces (cards, badges, tables, nav)
   pages/         # one file per route:
-                 #   Dashboard, Portfolio, Stocks, StockDetail, Discover,
-                 #   Intelligence (risk + risk attribution),
+                 #   Dashboard, Portfolio, Market (Phase 25), Stocks,
+                 #   StockDetail (+ live price/intraday chart, Phase 25),
+                 #   Discover, Intelligence (risk + risk attribution),
                  #   PortfolioFit (+ compare/counterfactual, Phase 20),
                  #   PortfolioLab (What-If + Optimization tabs, Phase 20)
   layouts/       # app shell (sidebar + top nav + protected-route wrapper)
   services/      # axios client + one module per API resource
-  hooks/         # data-fetching hooks (useAsync)
+  hooks/         # data-fetching hooks: useAsync (fetch-once), useMarketFeed
+                 #   (Phase 25 -- persistent WebSocket with reconnect/backoff,
+                 #   the one hook that does NOT follow useAsync's fetch-once
+                 #   model, since /ws/market is a push feed, not a request)
   types/         # TypeScript interfaces mirroring API_CONTRACT.md
-  charts/        # Recharts wrapper components
+  charts/        # Recharts wrapper components (incl. IntradayChart, Phase 25)
   utils/         # formatting helpers (currency, percent, date)
   test/          # Vitest setup (Phase 21)
 ```
 
-37 Vitest + React Testing Library tests cover `utils/format.ts` and
-smoke-level rendering (loading/error/data states, form submission) of the
-Phase 20 UI.
+46 Vitest + React Testing Library tests cover `utils/format.ts`,
+`useMarketFeed`, and smoke-level rendering (loading/error/data states,
+form submission) of the Phase 20 and Phase 25 UI.
 
 ## Security (Phase 21)
 

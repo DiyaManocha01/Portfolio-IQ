@@ -7,6 +7,7 @@ import { DisclaimerFooter } from '../components/DisclaimerFooter';
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: DashboardIcon },
   { to: '/portfolio', label: 'My Portfolio', icon: PortfolioIcon },
+  { to: '/market', label: 'Market', icon: MarketIcon },
   { to: '/stocks', label: 'Stocks', icon: StocksIcon },
   { to: '/discover', label: 'Discover', icon: DiscoverIcon },
   { to: '/intelligence', label: 'Portfolio Intelligence', icon: IntelligenceIcon },
@@ -144,6 +145,13 @@ function PortfolioIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...iconBase(props)}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 7v12a2 2 0 002 2h14a2 2 0 002-2V7M3 7l2-4h14l2 4M9 11h6" />
+    </svg>
+  );
+}
+function MarketIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...iconBase(props)}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" />
     </svg>
   );
 }

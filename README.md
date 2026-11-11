@@ -33,7 +33,7 @@ model-based estimates and are not guaranteed financial advice.
 - **NLP**: Hugging Face Transformers / FinBERT (optional, see below), with a
   lexicon-based sentiment provider as the offline default
 - **AI assistant**: Anthropic Claude API (retrieval-and-cite only — see `docs/methodology.md` Section 16)
-- **Testing**: pytest (backend, 293 tests), Vitest (frontend, 37 tests)
+- **Testing**: pytest (backend, 293 tests), Vitest (frontend, 46 tests)
 - **Deployment**: Docker Compose (see `docs/DEPLOYMENT.md`)
 
 ## Project structure
@@ -110,7 +110,7 @@ Frontend now running at http://localhost:5173 (Vite default).
 Run frontend tests:
 
 ```bash
-npm test   # 37 tests (Vitest + React Testing Library)
+npm test   # 46 tests (Vitest + React Testing Library)
 ```
 
 ## Data sources: LIVE vs DEVELOPMENT SAMPLE

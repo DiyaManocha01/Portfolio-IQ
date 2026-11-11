@@ -506,6 +506,52 @@ render the disclaimer. Requires auth (unlike the public `/ledger/*`
 endpoints) -- this answers questions about the current user's own
 portfolio.
 
+## Real-Time Market Data (Phase 24/25)
+
+### GET /market/status
+```json
+{
+  "market_status": "OPEN",
+  "feed_status": "DISABLED",
+  "server_time": "2026-11-11T10:00:00Z",
+  "ticks": [
+    {
+      "symbol": "RELIANCE", "exchange": "NSE", "price": 2950.0,
+      "previous_close": 2940.0, "change": 10.0, "change_percent": 0.34,
+      "open": 2941.0, "high": 2960.0, "low": 2938.0, "close": 2940.0,
+      "volume": 1200000, "last_traded_time": "2026-11-11T09:59:00Z",
+      "status": "FIXTURE", "source": "FIXTURE"
+    }
+  ]
+}
+```
+`market_status` is `OPEN | CLOSED | HOLIDAY | WEEKEND` (session hours
+only -- see `docs/limitations.md` for the holiday-calendar gap).
+`feed_status` is `DISABLED | MISCONFIGURED | CONNECTING | CONNECTED |
+RECONNECTING | STOPPED`. Each tick's own `status` is
+`LIVE | DELAYED | STALE | CLOSED | FIXTURE | UNAVAILABLE` -- **always
+render this status next to any price from this endpoint**; never imply a
+`FIXTURE` or `STALE` tick is a live price. `ticks` only contains symbols
+the cache currently has something for -- may be `[]` briefly after
+startup.
+
+### GET /market/candles/{symbol}?limit=390
+```json
+{ "symbol": "RELIANCE", "candles": [ { "timestamp": "...", "open": 0, "high": 0, "low": 0, "close": 0, "volume": 0, "status": "LIVE" } ] }
+```
+Returns real intraday candles from `intraday_candles` only -- an empty
+`candles` array means no snapshot exists yet (common until the real-time
+feed has actually run), not an error. Never fabricate a candle to fill
+this; the frontend hides the intraday chart entirely when this is empty.
+
+### WS /ws/market?token=&lt;JWT&gt;
+Pushes the same shape as `GET /market/status` roughly every second.
+Token is the same JWT from `POST /auth/login`, passed as a query param
+(browsers can't set a WebSocket's auth header). Closes with code 1008 if
+the token is missing or invalid. Multiple connected clients share one
+upstream broker connection server-side -- see
+`docs/adr/0008-realtime-market-data-angelone.md`.
+
 ## Error shape
 FastAPI default: `{ "detail": "message" }` with 401/404/400/503 status codes as appropriate. 503 specifically means the ML model hasn't been trained yet (won't happen against the seeded demo DB).
 

@@ -2,15 +2,19 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAsync } from '../hooks/useAsync';
+import { useMarketFeed } from '../hooks/useMarketFeed';
 import * as stockService from '../services/stocks';
+import * as marketService from '../services/market';
 import { Card } from '../components/Card';
 import { StatCard } from '../components/StatCard';
 import { ErrorBlock, LoadingBlock, EmptyBlock } from '../components/States';
-import { ConfidenceBadge, DataSourceBadge, DirectionBadge, SentimentBadge } from '../components/Badge';
+import { ConfidenceBadge, DataSourceBadge, DirectionBadge, SentimentBadge, TickStatusBadge } from '../components/Badge';
 import { PriceHistoryChart } from '../charts/PriceHistoryChart';
+import { IntradayChart } from '../charts/IntradayChart';
 import { RsiChart } from '../charts/RsiChart';
 import { MacdChart } from '../charts/MacdChart';
 import { formatCurrency, formatNumber, formatProbabilityPct, formatSignedPct, formatVolume, timeAgo } from '../utils/format';
+import type { TickOut } from '../types/api';
 
 type Tab = 'overview' | 'analysis' | 'outlook' | 'news';
 
@@ -23,6 +27,9 @@ export default function StockDetailPage() {
   const prediction = useAsync(() => stockService.getPrediction(symbol), [symbol]);
   const news = useAsync(() => stockService.getNews(symbol, 10), [symbol]);
   const sentiment = useAsync(() => stockService.getSentiment(symbol), [symbol]);
+  const candles = useAsync(() => marketService.getCandles(symbol), [symbol]);
+  const feed = useMarketFeed();
+  const liveTick = feed.data?.ticks.find((t) => t.symbol === symbol.toUpperCase());
 
   return (
     <div className="space-y-6">
@@ -39,7 +46,7 @@ export default function StockDetailPage() {
 
       {detail.data && (
         <>
-          <QuoteRow quote={detail.data.quote} />
+          <QuoteRow quote={detail.data.quote} liveTick={liveTick} />
 
           <div className="flex gap-2 border-b border-base-border">
             {(['overview', 'analysis', 'outlook', 'news'] as Tab[]).map((t) => (
@@ -56,7 +63,13 @@ export default function StockDetailPage() {
             ))}
           </div>
 
-          {tab === 'overview' && <OverviewTab detail={detail.data} />}
+          {tab === 'overview' && (
+            <OverviewTab
+              detail={detail.data}
+              candles={candles.data?.candles ?? []}
+              candlesLoading={candles.loading}
+            />
+          )}
           {tab === 'analysis' && (
             <AnalysisTab
               analysis={analysis.data}
@@ -91,27 +104,60 @@ export default function StockDetailPage() {
   );
 }
 
-function QuoteRow({ quote }: { quote: import('../types/api').StockQuote }) {
+function QuoteRow({ quote, liveTick }: { quote: import('../types/api').StockQuote; liveTick?: TickOut }) {
   const positive = quote.change >= 0;
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <StatCard label="Current Price" value={formatCurrency(quote.current_price)} />
-      <StatCard
-        label="Daily Change"
-        value={`${positive ? '+' : ''}${formatCurrency(quote.change)}`}
-        tone={positive ? 'positive' : 'negative'}
-        sub={formatSignedPct(quote.change_percent)}
-      />
-      <StatCard label="Previous Close" value={formatCurrency(quote.previous_close)} />
-      <StatCard label="Volume" value={formatVolume(quote.volume)} sub={<DataSourceBadge source={quote.data_source} />} />
+    <div className="space-y-2">
+      {liveTick && (
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <span>Real-time watchlist price:</span>
+          <span className="font-semibold text-slate-200">{formatCurrency(liveTick.price)}</span>
+          <TickStatusBadge status={liveTick.status} />
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Current Price" value={formatCurrency(quote.current_price)} />
+        <StatCard
+          label="Daily Change"
+          value={`${positive ? '+' : ''}${formatCurrency(quote.change)}`}
+          tone={positive ? 'positive' : 'negative'}
+          sub={formatSignedPct(quote.change_percent)}
+        />
+        <StatCard label="Previous Close" value={formatCurrency(quote.previous_close)} />
+        <StatCard label="Volume" value={formatVolume(quote.volume)} sub={<DataSourceBadge source={quote.data_source} />} />
+      </div>
     </div>
   );
 }
 
-function OverviewTab({ detail }: { detail: import('../types/api').StockDetail }) {
+function OverviewTab({
+  detail,
+  candles,
+  candlesLoading,
+}: {
+  detail: import('../types/api').StockDetail;
+  candles: import('../types/api').CandleOut[];
+  candlesLoading: boolean;
+}) {
   const { indicators, history } = detail;
   return (
     <div className="space-y-6">
+      <Card
+        title="Intraday (Real-Time Feed)"
+        subtitle="Minute candles from the Phase 24 watchlist feed, when available"
+      >
+        {candlesLoading ? (
+          <LoadingBlock label="Checking for intraday data…" />
+        ) : candles.length > 0 ? (
+          <IntradayChart candles={candles} />
+        ) : (
+          <EmptyBlock
+            title="No intraday data available"
+            message="This symbol has no real-time candles yet — either it's not on the watchlist, the real-time feed isn't connected, or the market hasn't been open since it was. Nothing here is simulated to fill the gap."
+          />
+        )}
+      </Card>
+
       <Card title="Price History" subtitle="Historical closing price">
         {history.length > 0 ? (
           <PriceHistoryChart points={history} />

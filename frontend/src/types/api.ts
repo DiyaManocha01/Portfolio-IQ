@@ -399,3 +399,48 @@ export interface FitCounterfactual {
   term_scenarios: FitTermScenario[];
   note: string;
 }
+
+// --- Phase 24/25: Real-time market data ---
+
+export type TickStatus = 'LIVE' | 'DELAYED' | 'STALE' | 'CLOSED' | 'FIXTURE' | 'UNAVAILABLE';
+export type MarketSessionStatus = 'OPEN' | 'CLOSED' | 'HOLIDAY' | 'WEEKEND';
+export type FeedStatus = 'DISABLED' | 'MISCONFIGURED' | 'CONNECTING' | 'CONNECTED' | 'RECONNECTING' | 'STOPPED';
+
+export interface TickOut {
+  symbol: string;
+  exchange: string;
+  price: number;
+  previous_close: number | null;
+  change: number | null;
+  change_percent: number | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  volume: number | null;
+  last_traded_time: string | null;
+  status: TickStatus;
+  source: string;
+}
+
+export interface MarketStatusOut {
+  market_status: MarketSessionStatus;
+  feed_status: FeedStatus;
+  server_time: string;
+  ticks: TickOut[];
+}
+
+export interface CandleOut {
+  timestamp: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  status: TickStatus;
+}
+
+export interface CandlesOut {
+  symbol: string;
+  candles: CandleOut[];
+}

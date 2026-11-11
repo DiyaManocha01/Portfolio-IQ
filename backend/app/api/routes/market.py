@@ -18,7 +18,9 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database.session import get_db
-from app.schemas.market import MarketStatusOut, TickOut
+from app.models.intraday_candle import IntradayCandle
+from app.models.stock import Stock
+from app.schemas.market import CandleOut, CandlesOut, MarketStatusOut, TickOut
 from app.services.market_data import session_calendar
 from app.services.market_data.live_cache import live_cache
 from app.services.market_data.tick_normalizer import TickStatus
@@ -78,6 +80,45 @@ def get_market_status(db: Session = Depends(get_db)):
         feed_status=_feed_status(),
         server_time=dt.datetime.now(tz=dt.timezone.utc),
         ticks=_current_snapshot(),
+    )
+
+
+@router.get("/market/candles/{symbol}", response_model=CandlesOut)
+def get_intraday_candles(symbol: str, limit: int = 390, db: Session = Depends(get_db)):
+    """Returns whatever real intraday candles exist for ``symbol``.
+
+    Deliberately returns an empty list rather than fabricating bars when
+    nothing has been snapshotted yet (e.g. the real-time feed has never
+    run) -- the frontend is expected to hide this timeframe rather than
+    show a chart with invented data. ``limit`` defaults to 390, one
+    trading day's worth of one-minute candles (9:15-15:30 IST).
+    """
+    stock = db.query(Stock).filter(Stock.symbol == symbol.upper()).first()
+    if stock is None:
+        return CandlesOut(symbol=symbol.upper(), candles=[])
+
+    rows = (
+        db.query(IntradayCandle)
+        .filter(IntradayCandle.stock_id == stock.id)
+        .order_by(IntradayCandle.timestamp.desc())
+        .limit(limit)
+        .all()
+    )
+    rows.reverse()
+    return CandlesOut(
+        symbol=symbol.upper(),
+        candles=[
+            CandleOut(
+                timestamp=r.timestamp,
+                open=r.open,
+                high=r.high,
+                low=r.low,
+                close=r.close,
+                volume=r.volume,
+                status=r.status.value,
+            )
+            for r in rows
+        ],
     )
 
 

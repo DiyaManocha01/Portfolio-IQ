@@ -1,6 +1,16 @@
 import React from 'react';
 import clsx from 'clsx';
-import type { Confidence, DiversificationBenefit, Direction, PortfolioRisk, SentimentLabel, Severity } from '../types/api';
+import type {
+  Confidence,
+  DiversificationBenefit,
+  Direction,
+  FeedStatus,
+  MarketSessionStatus,
+  PortfolioRisk,
+  SentimentLabel,
+  Severity,
+  TickStatus,
+} from '../types/api';
 
 type Tone = 'positive' | 'negative' | 'neutral' | 'warn' | 'brand';
 
@@ -8,10 +18,12 @@ export function Badge({
   children,
   tone = 'neutral',
   className,
+  title,
 }: {
   children: React.ReactNode;
   tone?: Tone;
   className?: string;
+  title?: string;
 }) {
   const toneClasses: Record<Tone, string> = {
     positive: 'bg-positive-bg text-positive border-positive/30',
@@ -22,6 +34,7 @@ export function Badge({
   };
   return (
     <span
+      title={title}
       className={clsx(
         'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap',
         toneClasses[tone],
@@ -66,6 +79,47 @@ export function SentimentBadge({ label }: { label: SentimentLabel }) {
 export function DiversificationBadge({ benefit }: { benefit: DiversificationBenefit }) {
   const tone: Tone = benefit === 'High' ? 'positive' : benefit === 'Moderate' ? 'warn' : 'neutral';
   return <Badge tone={tone}>{benefit} Diversification Benefit</Badge>;
+}
+
+export function TickStatusBadge({ status }: { status: TickStatus }) {
+  const map: Record<TickStatus, { tone: Tone; text: string; title: string }> = {
+    LIVE: { tone: 'positive', text: 'Live', title: 'A real tick from the broker feed, received recently.' },
+    DELAYED: { tone: 'warn', text: 'Delayed', title: 'A real tick, but delivered later than real-time.' },
+    STALE: { tone: 'warn', text: 'Stale', title: 'No new tick for over 15 seconds — may not reflect the current price.' },
+    CLOSED: { tone: 'neutral', text: 'Market Closed', title: 'Showing the last available price; the market is not currently trading.' },
+    FIXTURE: { tone: 'neutral', text: 'Demo Data', title: 'No live broker connection is configured — this is development/demo data, not a live price.' },
+    UNAVAILABLE: { tone: 'neutral', text: 'Unavailable', title: 'No price data is currently available for this symbol.' },
+  };
+  const cfg = map[status] ?? map.UNAVAILABLE;
+  return (
+    <Badge tone={cfg.tone} className="cursor-help" title={cfg.title}>
+      {cfg.text}
+    </Badge>
+  );
+}
+
+export function MarketSessionBadge({ status }: { status: MarketSessionStatus }) {
+  const map: Record<MarketSessionStatus, { tone: Tone; text: string }> = {
+    OPEN: { tone: 'positive', text: 'Market Open' },
+    CLOSED: { tone: 'neutral', text: 'Market Closed' },
+    HOLIDAY: { tone: 'neutral', text: 'Market Holiday' },
+    WEEKEND: { tone: 'neutral', text: 'Weekend' },
+  };
+  const cfg = map[status] ?? map.CLOSED;
+  return <Badge tone={cfg.tone}>{cfg.text}</Badge>;
+}
+
+export function FeedStatusBadge({ status }: { status: FeedStatus }) {
+  const map: Record<FeedStatus, { tone: Tone; text: string }> = {
+    DISABLED: { tone: 'neutral', text: 'Real-time feed: disabled' },
+    MISCONFIGURED: { tone: 'warn', text: 'Real-time feed: not configured' },
+    CONNECTING: { tone: 'warn', text: 'Real-time feed: connecting' },
+    CONNECTED: { tone: 'positive', text: 'Real-time feed: connected' },
+    RECONNECTING: { tone: 'warn', text: 'Real-time feed: reconnecting' },
+    STOPPED: { tone: 'neutral', text: 'Real-time feed: stopped' },
+  };
+  const cfg = map[status] ?? map.DISABLED;
+  return <Badge tone={cfg.tone}>{cfg.text}</Badge>;
 }
 
 export function DataSourceBadge({ source }: { source: 'DEV_SAMPLE' | 'LIVE' }) {

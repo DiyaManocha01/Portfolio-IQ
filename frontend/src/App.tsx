@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import PortfolioPage from './pages/PortfolioPage';
+import MarketPage from './pages/MarketPage';
 import StocksPage from './pages/StocksPage';
 import StockDetailPage from './pages/StockDetailPage';
 import DiscoverPage from './pages/DiscoverPage';
@@ -31,6 +32,7 @@ export default function App() {
           >
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/portfolio" element={<PortfolioPage />} />
+            <Route path="/market" element={<MarketPage />} />
             <Route path="/stocks" element={<StocksPage />} />
             <Route path="/stocks/:symbol" element={<StockDetailPage />} />
             <Route path="/discover" element={<DiscoverPage />} />
