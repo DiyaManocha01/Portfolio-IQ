@@ -9,6 +9,27 @@ class HoldingCreate(BaseModel):
     avg_buy_price: float = Field(gt=0)
 
 
+class SellRequest(BaseModel):
+    """Phase 31: sells part or all of a holding at a given price, logging a
+    SELL Transaction with realized P&L. Distinct from DELETE
+    /portfolio/holdings/{id}, which removes a holding outright with no
+    price and no transaction logged (for correcting a mis-entered holding,
+    not for recording a real sale) -- see docs/adr/0014-portfolio-transaction-ledger.md."""
+
+    price: float = Field(gt=0)
+    quantity: float | None = Field(default=None, gt=0)  # omit to sell the entire position
+
+
+class TransactionOut(BaseModel):
+    id: int
+    symbol: str
+    type: str
+    quantity: float
+    price: float
+    realized_pnl: float | None
+    transaction_date: date
+
+
 class HoldingOut(BaseModel):
     id: int
     symbol: str
@@ -45,6 +66,60 @@ class PerformancePoint(BaseModel):
 
 class PortfolioPerformance(BaseModel):
     points: list[PerformancePoint]
+    data_source: str
+
+
+class DailyReturnPoint(BaseModel):
+    date: date
+    return_pct: float
+
+
+class CumulativeReturnPoint(BaseModel):
+    date: date
+    cumulative_return_pct: float
+
+
+class DrawdownPoint(BaseModel):
+    date: date
+    drawdown_pct: float
+
+
+class BenchmarkPoint(BaseModel):
+    date: date
+    value: float
+
+
+class HoldingContribution(BaseModel):
+    symbol: str
+    name: str
+    pnl: float
+    contribution_pct: float
+
+
+class SectorContribution(BaseModel):
+    sector: str
+    pnl: float
+    contribution_pct: float
+
+
+class AdvancedPerformance(BaseModel):
+    """Phase 31. `unrealized_pnl` comes from current holdings (same figure
+    as PortfolioSummary.total_pnl); `realized_pnl` is the sum of SELL
+    transactions logged since Phase 31 -- holdings sold or removed before
+    then have no realized figure to include (never backfilled). See
+    docs/adr/0014-portfolio-transaction-ledger.md."""
+
+    points: list[PerformancePoint]
+    daily_returns: list[DailyReturnPoint]
+    cumulative_returns: list[CumulativeReturnPoint]
+    drawdown: list[DrawdownPoint]
+    benchmark: list[BenchmarkPoint]
+    holding_contributions: list[HoldingContribution]
+    sector_contributions: list[SectorContribution]
+    unrealized_pnl: float
+    realized_pnl: float
+    total_pnl: float
+    annualized_volatility_realized: float | None
     data_source: str
 
 

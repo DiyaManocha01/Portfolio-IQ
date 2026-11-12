@@ -1364,8 +1364,95 @@ regardless of whether later bars exist elsewhere in the same process.
 Full design rationale, including the self-referential-trend-z-score bug
 caught during development: `docs/adr/0013-market-regime-detection.md`.
 
+## 18. Advanced Portfolio Performance (Phase 31)
+
+Implemented in `backend/app/portfolio/portfolio_performance_service.py`,
+composing existing calculations rather than re-deriving them (see ADR
+0014 for exactly what's reused vs. new).
+
+### 18.1 Daily and cumulative returns
+
+From the existing `get_performance_series()` value series `V_t`:
+
+```
+daily_return_t      = V_t / V_(t-1) - 1
+cumulative_return_t = V_t / V_0 - 1
+```
+
+### 18.2 Drawdown series
+
+`app/services/analytics.py::max_drawdown` already reports the single
+worst value; this phase exposes the full running path:
+
+```
+running_max_t = max(V_0, V_1, ..., V_t)
+drawdown_t    = (V_t - running_max_t) / running_max_t
+```
+
+Always <= 0 by construction (a new running maximum resets it to exactly 0).
+
+### 18.3 Benchmark comparison
+
+NIFTY 50 bought-and-held, normalized to the portfolio's own starting
+value -- the same approach already used for Paper Trading's Phase 28
+benchmark:
+
+```
+benchmark_value_t = V_0 * (nifty_close_t / nifty_close_0)
+```
+
+Not a backtested strategy, not risk-adjusted -- nothing more elaborate
+is claimed.
+
+### 18.4 Sector- and holding-level P&L contribution
+
+For each holding `i` with current unrealized P&L `pnl_i`:
+
+```
+contribution_pct_i = pnl_i / sum(pnl_j for all j) * 100
+```
+
+Sector contribution sums `pnl_i` across holdings sharing a sector
+before applying the same formula. This is a contribution to *return*
+(total P&L), distinct from Phase 14's risk-attribution, which allocates
+portfolio *risk* across holdings -- the two percentages answer different
+questions and are not expected to match.
+
+### 18.5 Realized vs. unrealized P&L
+
+```
+unrealized_pnl = sum(current_value_i - invested_value_i for all current holdings i)
+realized_pnl   = sum(realized_pnl_t for every logged SELL transaction t)
+total_pnl      = unrealized_pnl + realized_pnl
+```
+
+`realized_pnl` only includes sales made through `POST
+/portfolio/holdings/{id}/sell` (added this phase) -- transaction
+logging is not backfilled for holdings bought or sold before it existed
+(CLAUDE.md rule 5: never invent data). See ADR 0014 for why this gap is
+documented rather than papered over.
+
+### 18.6 A second, independently-derived volatility figure
+
+`annualized_volatility_realized = std(daily_return_t) * sqrt(252)`,
+computed directly from this phase's own performance series. This can
+differ from `GET /portfolio/risk`'s `annualized_volatility` (Phase 8),
+which is derived from each holding's own return series and combined via
+the covariance matrix -- the two are different, each individually
+correct, estimates from different underlying data, not a bug if they
+disagree.
+
+### 18.7 Corporate actions (splits, dividends)
+
+No new adjustment logic. `LiveYFinanceProvider.get_history` passes
+`auto_adjust=True` explicitly to `yfinance`'s `Ticker.history()` --
+returned OHLC is already split/dividend-adjusted by yfinance itself, so
+every return/drawdown/volatility calculation above is already correct
+without a separate correction step. `DevSampleProvider`'s synthetic
+data has no corporate actions to adjust for.
+
 ---
 
-*(Sections 18+ — UI/UX polish, testing/security, deployment, and final
+*(Sections 19+ — UI/UX polish, testing/security, deployment, and final
 documentation — are added as each corresponding phase is implemented,
 not written in advance.)*

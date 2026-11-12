@@ -57,6 +57,10 @@ class Transaction(Base):
     type: Mapped[TransactionType] = mapped_column(Enum(TransactionType, name="transaction_type"), nullable=False)
     quantity: Mapped[float] = mapped_column(Float, nullable=False)
     price: Mapped[float] = mapped_column(Float, nullable=False)
+    # Phase 31: populated for SELL transactions only -- (price - avg_buy_price
+    # at the time of sale) * quantity. Null for BUY transactions, which have
+    # nothing to realize yet.
+    realized_pnl: Mapped[float | None] = mapped_column(Float, nullable=True)
     transaction_date: Mapped[date] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

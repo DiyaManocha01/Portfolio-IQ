@@ -87,6 +87,7 @@ backend/
       optimization_service.py       # min-variance/max-Sharpe/HRP via PyPortfolioOpt (Phase 9)
       whatif_service.py              # What-If Simulator, arbitrary rebalancing (Phase 11)
       risk_attribution_service.py     # % money vs. % risk per holding (Phase 14)
+      portfolio_performance_service.py  # daily/cumulative returns, benchmark, drawdown series, sector/holding P&L contribution (Phase 31)
       stress_test_service.py           # CAPM beta-scaled shock simulation (Phase 15)
       scenario_parser.py                # regex scenario-text -> structured shock params (Phase 15)
       fit_counterfactual_service.py      # "why A > B" / "what would improve this" (Phase 16)
@@ -98,7 +99,7 @@ backend/
     data/
       seed.py                 # dev seed script: stocks, market data, news, demo user, trains ML
       models/                  # trained model artifacts (joblib) + metadata.json, gitignored
-    tests/                    # pytest suite, 378 tests
+    tests/                    # pytest suite, 394 tests
   Dockerfile                  # multi-stage build (Phase 22)
   docker-entrypoint.sh         # migrate -> seed/train (once) -> uvicorn (Phase 22)
 ```
@@ -106,7 +107,11 @@ backend/
 ## Database schema (20 tables)
 
 `users` -> `user_profiles` (1:1), `users` -> `portfolios` (1:many) ->
-`holdings` / `transactions` / `portfolio_scores`. `holdings`/`transactions`
+`holdings` / `transactions` / `portfolio_scores`. `transactions` gained a
+`realized_pnl` column in Phase 31, when it started actually being
+populated by `/portfolio/holdings` (buy) and the new
+`/portfolio/holdings/{id}/sell` -- before that the table existed in the
+schema but nothing wrote to it, see ADR 0014. `holdings`/`transactions`
 reference `stocks`, which own `market_data`, `financial_metrics`,
 `predictions`, `intraday_candles` (Phase 24), and (optionally) `news` ->
 `news_sentiment` (1:1). `predictions` feed `prediction_ledger` (Phase 18,
@@ -136,7 +141,7 @@ Schema changes go through Alembic (`backend/alembic/`) as of Phase 4 —
 | Module | Mounted at | Auth | Notes |
 |---|---|---|---|
 | `auth.py` | `/auth` | mixed | register/login rate-limited (Phase 21) |
-| `portfolio.py` | `/portfolio` | required | holdings, risk, health, optimize, what-if, stress-test, risk-attribution |
+| `portfolio.py` | `/portfolio` | required | holdings (+ sell/transactions, Phase 31), risk, health, optimize, what-if, stress-test, risk-attribution, advanced performance (Phase 31) |
 | `stocks.py` | `/stocks` | **none** | quote, history, analysis, prediction (+SHAP), news, sentiment, fundamentals (Phase 26) -- not user-scoped data, so never required `get_current_user`; this table previously (incorrectly) said "required" here, corrected in Phase 26, see ADR 0009 |
 | `discover.py` | `/discover` | required | personalized candidate ranking (via `get_current_portfolio`, which itself requires auth) |
 | `portfolio_fit.py` | `/portfolio-fit` | required | fit breakdown, compare, counterfactual (same `get_current_portfolio` path) |
@@ -267,12 +272,14 @@ frontend/src/
   components/   # shared UI pieces (cards, badges, tables, nav;
                  #   RegimeCard, Phase 30 -- used on both Market and StockDetail)
   pages/         # one file per route:
-                 #   Dashboard, Portfolio, Market (Phase 25; + regime card, Phase 30), Stocks,
+                 #   Dashboard, Portfolio (+ sell + transaction history, Phase 31),
+                 #   Market (Phase 25; + regime card, Phase 30), Stocks,
                  #   StockDetail (+ live price/intraday chart, Phase 25;
                  #   + Fundamentals tab, Phase 26; + regime card, Phase 30), Screener (Phase 26),
                  #   Alerts (rule builder + triggered-event feed, Phase 27),
                  #   PaperTrading (hypothetical buy/sell + performance, Phase 28),
-                 #   Discover, Intelligence (risk + risk attribution),
+                 #   Discover, Intelligence (risk + risk attribution
+                 #   + Advanced Performance section, Phase 31),
                  #   PortfolioFit (+ compare/counterfactual, Phase 20),
                  #   PortfolioLab (What-If + Optimization tabs, Phase 20)
   layouts/       # app shell (sidebar + top nav + protected-route wrapper)
@@ -283,14 +290,15 @@ frontend/src/
                  #   model, since /ws/market is a push feed, not a request)
   types/         # TypeScript interfaces mirroring API_CONTRACT.md
   charts/        # Recharts wrapper components (incl. IntradayChart, Phase 25;
-                 #   PaperPerformanceChart, Phase 28)
+                 #   PaperPerformanceChart, Phase 28; BenchmarkComparisonChart
+                 #   and DrawdownChart, Phase 31)
   utils/         # formatting helpers (currency, percent, date)
   test/          # Vitest setup (Phase 21)
 ```
 
-61 Vitest + React Testing Library tests cover `utils/format.ts`,
+66 Vitest + React Testing Library tests cover `utils/format.ts`,
 `useMarketFeed`, and smoke-level rendering (loading/error/data states,
-form submission) of the Phase 20, 25, 26, 27, 28, 29, and 30 UI.
+form submission) of the Phase 20, 25, 26, 27, 28, 29, 30, and 31 UI.
 
 ## Security (Phase 21)
 

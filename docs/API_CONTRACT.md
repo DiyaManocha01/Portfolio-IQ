@@ -62,9 +62,27 @@ unfiltered rather than returning nothing.
 ```
 
 ### POST /portfolio/holdings
-Body: `{ "symbol": "TCS", "quantity": 10, "avg_buy_price": 3200 }` -> Holding (201). Adding an existing symbol merges into a weighted-average position.
+Body: `{ "symbol": "TCS", "quantity": 10, "avg_buy_price": 3200 }` -> Holding (201). Adding an existing symbol merges into a weighted-average position. Phase 31: also logs a BUY transaction (see `/portfolio/transactions` below).
+
+### POST /portfolio/holdings/{holding_id}/sell (Phase 31)
+Body: `{ "price": 3600, "quantity": 4 }` (`quantity` optional -- omit to sell the entire position). Reduces or removes the holding, computes `realized_pnl = (price - avg_buy_price) * quantity`, and logs a SELL transaction. Returns `400` if `quantity` exceeds what's held, `404` if the holding doesn't exist.
+```json
+{ "id": 12, "symbol": "TCS", "type": "SELL", "quantity": 4, "price": 3600,
+  "realized_pnl": 400.0, "transaction_date": "2026-11-12" }
+```
+Distinct from `DELETE` below, which stays a plain removal with no price and no transaction logged (for correcting a mis-entered holding, not recording a sale) -- see `docs/adr/0014-portfolio-transaction-ledger.md`.
 
 ### DELETE /portfolio/holdings/{holding_id} -> 204
+Unchanged since before Phase 31: removes the holding outright, no transaction logged.
+
+### GET /portfolio/transactions (Phase 31)
+Newest first. Only includes transactions logged since Phase 31 shipped -- holdings added or removed before then have no history (never backfilled).
+```json
+[{ "id": 12, "symbol": "TCS", "type": "SELL", "quantity": 4, "price": 3600,
+   "realized_pnl": 400.0, "transaction_date": "2026-11-12" },
+ { "id": 11, "symbol": "TCS", "type": "BUY", "quantity": 10, "price": 3500,
+   "realized_pnl": null, "transaction_date": "2026-11-10" }]
+```
 
 ### GET /portfolio/summary
 ```json
@@ -79,6 +97,37 @@ Body: `{ "symbol": "TCS", "quantity": 10, "avg_buy_price": 3200 }` -> Holding (2
   "data_source": "DEV_SAMPLE" | "LIVE" }
 ```
 Note: assumes current holding quantities held constant across the window (documented MVP simplification).
+
+### GET /portfolio/performance/advanced?days=180 (Phase 31)
+Builds on the same `points` series above with daily/cumulative returns,
+a NIFTY 50 benchmark comparison, a running drawdown series, sector- and
+holding-level P&L contribution, and the realized/unrealized split. See
+`app/portfolio/portfolio_performance_service.py` and ADR 0014.
+```json
+{
+  "points": [{ "date": "2026-01-01", "value": 250000.0, "invested": 248200.0 }],
+  "daily_returns": [{ "date": "2026-01-02", "return_pct": 0.42 }],
+  "cumulative_returns": [{ "date": "2026-01-02", "cumulative_return_pct": 0.42 }],
+  "drawdown": [{ "date": "2026-01-02", "drawdown_pct": -1.3 }],
+  "benchmark": [{ "date": "2026-01-01", "value": 250000.0 }],
+  "holding_contributions": [{ "symbol": "TCS", "name": "Tata Consultancy Services", "pnl": 2897.1, "contribution_pct": 31.5 }],
+  "sector_contributions": [{ "sector": "Information Technology", "pnl": 8206.65, "contribution_pct": 42.2 }],
+  "unrealized_pnl": 4502.01, "realized_pnl": 400.0, "total_pnl": 4902.01,
+  "annualized_volatility_realized": 0.2008,
+  "data_source": "DEV_SAMPLE"
+}
+```
+`unrealized_pnl` matches `PortfolioSummary.total_pnl`. `realized_pnl` is
+the sum of SELL transactions logged since Phase 31 (0 until a real sale
+happens via `/portfolio/holdings/{id}/sell`). `annualized_volatility_realized`
+is computed directly from this series' own realized daily returns -- a
+second, independently-derived volatility figure from `GET
+/portfolio/risk`'s `annualized_volatility` (the two can differ, since
+they're computed from different underlying return series). `benchmark`
+is NIFTY 50 bought-and-held normalized to the same starting value as
+`points[0]` -- not a backtested strategy. Corporate actions
+(splits/dividends): handled via `auto_adjust=True` on the underlying
+`yfinance` call, not separate logic here -- see ADR 0014.
 
 ### GET /portfolio/allocation
 ```json

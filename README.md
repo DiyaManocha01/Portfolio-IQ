@@ -33,7 +33,7 @@ model-based estimates and are not guaranteed financial advice.
 - **NLP**: Hugging Face Transformers / FinBERT (optional, see below), with a
   lexicon-based sentiment provider as the offline default
 - **AI assistant**: Anthropic Claude API (retrieval-and-cite only — see `docs/methodology.md` Section 16)
-- **Testing**: pytest (backend, 378 tests), Vitest (frontend, 61 tests)
+- **Testing**: pytest (backend, 394 tests), Vitest (frontend, 66 tests)
 - **Deployment**: Docker Compose (see `docs/DEPLOYMENT.md`)
 
 ## Project structure
@@ -83,7 +83,7 @@ Backend now running at http://localhost:8000 (interactive docs at `/docs`).
 Run tests (with the backend's venv active, DB seeded, and the server importable):
 
 ```bash
-python -m pytest app/tests/ -v   # 378 tests
+python -m pytest app/tests/ -v   # 394 tests
 ```
 
 ### Demo login
@@ -110,7 +110,7 @@ Frontend now running at http://localhost:5173 (Vite default).
 Run frontend tests:
 
 ```bash
-npm test   # 61 tests (Vitest + React Testing Library)
+npm test   # 66 tests (Vitest + React Testing Library)
 ```
 
 ## Data sources: LIVE vs DEVELOPMENT SAMPLE
@@ -236,6 +236,15 @@ the full provider-abstraction pattern.
   one against. Confidence is a bounded, non-probabilistic distance from
   the decision threshold, and every factor is returned with its own
   plain-language explanation. See `docs/adr/0013-market-regime-detection.md`.
+- **Advanced Portfolio Performance** (Phase 31): daily/cumulative
+  returns, a NIFTY 50 benchmark comparison, a running drawdown series,
+  sector- and holding-level P&L contribution, and a clear realized-vs-
+  unrealized split -- backed by new transaction logging for the real
+  portfolio (`POST /portfolio/holdings/{id}/sell`, `GET
+  /portfolio/transactions`), reusing Phase 8's risk metrics rather than
+  recomputing them. Corporate actions (splits/dividends) are handled via
+  `yfinance`'s own `auto_adjust=True`, not separate logic. See
+  `docs/adr/0014-portfolio-transaction-ledger.md`.
 
 ## Known limitations (honestly, and extended every phase)
 

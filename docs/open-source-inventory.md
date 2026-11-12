@@ -112,3 +112,9 @@ plus the existing `PortfolioFitService` (Phase 10), per ADR 0012.
 **Phase 30 note:** no new dependencies were added -- Market Regime
 Detection reuses `app/services/analytics.py` (already vetted) and
 Python's standard-library `math`, per ADR 0013.
+
+**Phase 31 note:** no new dependencies were added -- Advanced Portfolio
+Performance reuses `portfolio_calc.py`, `PortfolioRiskService` (Phase
+8), and `analytics.py` (all already vetted); the only change to an
+existing dependency's usage is passing `auto_adjust=True` explicitly to
+the already-vetted `yfinance` (Apache-2.0, Phase 4), per ADR 0014.

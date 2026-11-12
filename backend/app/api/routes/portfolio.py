@@ -1,9 +1,11 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_portfolio, get_current_user
 from app.database.session import get_db
-from app.models.portfolio import Holding, Portfolio
+from app.models.portfolio import Holding, Portfolio, Transaction, TransactionType
 from app.models.user import User
 from app.portfolio.health_service import PortfolioHealthService
 from app.portfolio.optimization_service import VALID_METHODS, PortfolioOptimizationService
@@ -14,8 +16,14 @@ from app.portfolio.stress_test_service import SCENARIO_PRESETS, StressTestServic
 from app.portfolio.weakness_service import PortfolioWeaknessService
 from app.portfolio.whatif_service import WhatIfService
 from app.schemas.portfolio import (
+    AdvancedPerformance,
     AllocationSlice,
+    BenchmarkPoint,
     CorrelationPair,
+    CumulativeReturnPoint,
+    DailyReturnPoint,
+    DrawdownPoint,
+    HoldingContribution,
     HoldingCreate,
     HoldingOut,
     OptimizationAllocation,
@@ -30,9 +38,12 @@ from app.schemas.portfolio import (
     RiskAttributionItem,
     RiskContribution,
     ScoreComponent,
+    SectorContribution,
+    SellRequest,
     StressTestHoldingImpact,
     StressTestRequest,
     StressTestResult,
+    TransactionOut,
     WeaknessOut,
     PerformancePoint,
     TradeCost,
@@ -41,6 +52,7 @@ from app.schemas.portfolio import (
     WhatIfResult,
     WhatIfTrade,
 )
+from app.portfolio import portfolio_performance_service
 from app.services import portfolio_calc
 from app.services.market_data.service import MarketDataService
 
@@ -91,11 +103,83 @@ def add_holding(
             avg_buy_price=payload.avg_buy_price,
         )
         db.add(holding)
+
+    # Phase 31: every buy is logged as a Transaction, so realized P&L and a
+    # transaction history become possible going forward -- see ADR 0014.
+    # Holdings created before this phase have no transaction history; that
+    # gap is documented, never backfilled (CLAUDE.md: never invent data).
+    db.add(
+        Transaction(
+            portfolio_id=portfolio.id,
+            stock_id=stock.id,
+            type=TransactionType.BUY,
+            quantity=payload.quantity,
+            price=payload.avg_buy_price,
+            realized_pnl=None,
+            transaction_date=date.today(),
+        )
+    )
     db.commit()
     db.refresh(holding)
 
     latest, _ = market_data.get_quote(stock)
     return portfolio_calc.holding_metrics(holding, latest.close)
+
+
+@router.post("/holdings/{holding_id}/sell", response_model=TransactionOut)
+def sell_holding(
+    holding_id: int,
+    payload: SellRequest,
+    portfolio: Portfolio = Depends(get_current_portfolio),
+    db: Session = Depends(get_db),
+):
+    """Sells part or all of a holding at `payload.price`, logging a SELL
+    Transaction with realized P&L = (price - avg_buy_price) * quantity.
+    Distinct from DELETE below, which removes a holding with no price and
+    no transaction (for correcting a mistake, not recording a sale)."""
+    holding = (
+        db.query(Holding).filter(Holding.id == holding_id, Holding.portfolio_id == portfolio.id).first()
+    )
+    if not holding:
+        raise HTTPException(status_code=404, detail="Holding not found")
+
+    sell_quantity = payload.quantity if payload.quantity is not None else holding.quantity
+    if sell_quantity > holding.quantity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot sell {sell_quantity} shares -- only {holding.quantity} are held.",
+        )
+
+    realized_pnl = round((payload.price - holding.avg_buy_price) * sell_quantity, 2)
+    stock_id = holding.stock_id
+    symbol = holding.stock.symbol
+
+    holding.quantity -= sell_quantity
+    if holding.quantity <= 1e-9:
+        db.delete(holding)
+
+    txn = Transaction(
+        portfolio_id=portfolio.id,
+        stock_id=stock_id,
+        type=TransactionType.SELL,
+        quantity=sell_quantity,
+        price=payload.price,
+        realized_pnl=realized_pnl,
+        transaction_date=date.today(),
+    )
+    db.add(txn)
+    db.commit()
+    db.refresh(txn)
+
+    return TransactionOut(
+        id=txn.id,
+        symbol=symbol,
+        type=txn.type.value,
+        quantity=txn.quantity,
+        price=txn.price,
+        realized_pnl=txn.realized_pnl,
+        transaction_date=txn.transaction_date,
+    )
 
 
 @router.delete("/holdings/{holding_id}", status_code=204)
@@ -112,6 +196,33 @@ def remove_holding(
     db.delete(holding)
     db.commit()
     return None
+
+
+@router.get("/transactions", response_model=list[TransactionOut])
+def list_transactions(
+    portfolio: Portfolio = Depends(get_current_portfolio),
+    db: Session = Depends(get_db),
+):
+    """Newest first. Only includes transactions logged since Phase 31 --
+    holdings added before this phase have no transaction history."""
+    rows = (
+        db.query(Transaction)
+        .filter(Transaction.portfolio_id == portfolio.id)
+        .order_by(Transaction.transaction_date.desc(), Transaction.id.desc())
+        .all()
+    )
+    return [
+        TransactionOut(
+            id=t.id,
+            symbol=t.stock.symbol,
+            type=t.type.value,
+            quantity=t.quantity,
+            price=t.price,
+            realized_pnl=t.realized_pnl,
+            transaction_date=t.transaction_date,
+        )
+        for t in rows
+    ]
 
 
 @router.get("/summary", response_model=PortfolioSummary)
@@ -144,6 +255,33 @@ def performance(
 ):
     points, source = portfolio_calc.get_performance_series(db, portfolio, days=days)
     return PortfolioPerformance(points=[PerformancePoint(**p) for p in points], data_source=source)
+
+
+@router.get("/performance/advanced", response_model=AdvancedPerformance)
+def performance_advanced(
+    days: int = 180,
+    portfolio: Portfolio = Depends(get_current_portfolio),
+    db: Session = Depends(get_db),
+):
+    """Phase 31: daily/cumulative returns, a NIFTY 50 benchmark comparison,
+    a running drawdown series, sector/holding-level P&L contribution, and
+    the realized/unrealized split -- see
+    app/portfolio/portfolio_performance_service.py and ADR 0014."""
+    result = portfolio_performance_service.get_advanced_performance(db, portfolio, days=days)
+    return AdvancedPerformance(
+        points=[PerformancePoint(**p) for p in result["points"]],
+        daily_returns=[DailyReturnPoint(**p) for p in result["daily_returns"]],
+        cumulative_returns=[CumulativeReturnPoint(**p) for p in result["cumulative_returns"]],
+        drawdown=[DrawdownPoint(**p) for p in result["drawdown"]],
+        benchmark=[BenchmarkPoint(**p) for p in result["benchmark"]],
+        holding_contributions=[HoldingContribution(**c) for c in result["holding_contributions"]],
+        sector_contributions=[SectorContribution(**c) for c in result["sector_contributions"]],
+        unrealized_pnl=result["unrealized_pnl"],
+        realized_pnl=result["realized_pnl"],
+        total_pnl=result["total_pnl"],
+        annualized_volatility_realized=result["annualized_volatility_realized"],
+        data_source=result["data_source"],
+    )
 
 
 @router.get("/allocation", response_model=PortfolioAllocation)

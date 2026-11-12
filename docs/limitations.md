@@ -207,6 +207,40 @@ UI, the methodology doc, or a future paper, it's listed here.
   since this sandbox has no live market-data feed -- see the Phase 4/24
   limitations above for why.
 
+## Advanced Portfolio Performance (Phase 31)
+
+- **Realized P&L only covers sales made through the new `/sell`
+  endpoint, starting Phase 31.** The `transactions` table existed since
+  the original schema but was never populated for the real portfolio
+  before this phase; holdings bought, sold, or removed earlier have no
+  transaction history and are never backfilled (CLAUDE.md rule 5).
+  `realized_pnl` will read 0 for every portfolio until a real sale
+  happens from here on.
+- **Sell transactions on the real portfolio carry no fee/cost model**,
+  unlike Paper Trading's reuse of the Phase 11 Indian brokerage-cost
+  model. Phase 31 asked for a realized/unrealized distinction, not a
+  cost model, and the real portfolio has never modeled fees anywhere
+  else.
+- **Sector/holding contribution is to total return (P&L), not risk.**
+  It is a different percentage from Phase 14's risk-attribution, which
+  allocates portfolio volatility, and the two are not expected to match
+  for the same holding.
+- **The benchmark comparison is NIFTY 50 buy-and-hold only**, normalized
+  to the portfolio's own starting value -- not a backtested strategy,
+  not risk-adjusted.
+- **Corporate-action handling has never been exercised against a real
+  split or dividend in this sandbox.** `auto_adjust=True` is now passed
+  explicitly to yfinance, which should already correct for splits and
+  dividends in live data, but no stock held here has ever actually
+  undergone one during this project's development, since the real-data
+  provider has no live network access in this environment (see the
+  Phase 4/24 limitations above).
+- **`annualized_volatility_realized` and `/portfolio/risk`'s
+  `annualized_volatility` can legitimately differ** -- they're computed
+  from different underlying return series (this phase's own performance
+  series vs. each holding's return series combined via the covariance
+  matrix), and disagreement between them is not a bug.
+
 ## News & Sentiment (Phase 7)
 
 - **Headline-to-stock matching is unvalidated.** `services/news/matching.py`

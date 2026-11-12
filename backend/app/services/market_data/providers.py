@@ -309,7 +309,11 @@ class LiveYFinanceProvider(MarketDataProvider):
 
         yf_symbol = symbol if symbol.startswith("^") else f"{symbol}.NS"
         ticker = yf.Ticker(yf_symbol)
-        hist = ticker.history(period=f"{days}d")
+        # auto_adjust=True (explicit, not relying on yfinance's own default):
+        # OHLC is split/dividend-adjusted by yfinance itself, so return
+        # calculations downstream are already correct without separate
+        # corporate-action handling -- see docs/adr/0014-portfolio-transaction-ledger.md.
+        hist = ticker.history(period=f"{days}d", auto_adjust=True)
         bars = []
         for idx, row in hist.iterrows():
             bars.append(

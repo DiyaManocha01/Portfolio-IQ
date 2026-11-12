@@ -51,6 +51,71 @@ export interface PortfolioPerformance {
   data_source: 'DEV_SAMPLE' | 'LIVE';
 }
 
+// --- Phase 31: transaction logging + Advanced Portfolio Performance ---
+
+export interface SellRequest {
+  price: number;
+  quantity?: number;
+}
+
+export interface TransactionOut {
+  id: number;
+  symbol: string;
+  type: 'BUY' | 'SELL';
+  quantity: number;
+  price: number;
+  realized_pnl: number | null;
+  transaction_date: string;
+}
+
+export interface DailyReturnPoint {
+  date: string;
+  return_pct: number;
+}
+
+export interface CumulativeReturnPoint {
+  date: string;
+  cumulative_return_pct: number;
+}
+
+export interface DrawdownPoint {
+  date: string;
+  drawdown_pct: number;
+}
+
+export interface BenchmarkPoint {
+  date: string;
+  value: number;
+}
+
+export interface HoldingContribution {
+  symbol: string;
+  name: string;
+  pnl: number;
+  contribution_pct: number;
+}
+
+export interface SectorContribution {
+  sector: string;
+  pnl: number;
+  contribution_pct: number;
+}
+
+export interface AdvancedPerformance {
+  points: PerformancePoint[];
+  daily_returns: DailyReturnPoint[];
+  cumulative_returns: CumulativeReturnPoint[];
+  drawdown: DrawdownPoint[];
+  benchmark: BenchmarkPoint[];
+  holding_contributions: HoldingContribution[];
+  sector_contributions: SectorContribution[];
+  unrealized_pnl: number;
+  realized_pnl: number;
+  total_pnl: number;
+  annualized_volatility_realized: number | null;
+  data_source: 'DEV_SAMPLE' | 'LIVE';
+}
+
 export interface AllocationSlice {
   label: string;
   value: number;

@@ -7,13 +7,16 @@ import { SeverityBadge, DataSourceBadge } from '../components/Badge';
 import { HorizontalBarChart } from '../charts/HorizontalBarChart';
 import { CorrelationHeatmap } from '../charts/CorrelationHeatmap';
 import { AllocationDonut } from '../charts/AllocationDonut';
+import { BenchmarkComparisonChart } from '../charts/BenchmarkComparisonChart';
+import { DrawdownChart } from '../charts/DrawdownChart';
 import { colorForIndex } from '../charts/palette';
 import { WeaknessCard } from '../components/WeaknessCard';
-import { formatNumber, formatPct, formatProbabilityPct, formatSignedPct } from '../utils/format';
+import { formatCurrency, formatNumber, formatPct, formatProbabilityPct, formatSignedPct } from '../utils/format';
 
 export default function IntelligencePage() {
   const risk = useAsync(() => portfolioService.getRisk(), []);
   const attribution = useAsync(() => portfolioService.getRiskAttribution(), []);
+  const advanced = useAsync(() => portfolioService.getAdvancedPerformance(), []);
   const health = useAsync(() => portfolioService.getHealth(), []);
   const weaknesses = useAsync(() => portfolioService.getWeaknesses(), []);
 
@@ -134,6 +137,86 @@ export default function IntelligencePage() {
               {formatProbabilityPct(attribution.data.portfolio_annualized_volatility)}.
             </p>
           </Card>
+        )}
+      </section>
+
+      {/* Advanced Performance section */}
+      <section className="space-y-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Advanced Performance</h2>
+        {advanced.loading && <LoadingBlock />}
+        {advanced.error && <ErrorBlock message={advanced.error} onRetry={advanced.reload} />}
+        {advanced.data && (
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <StatCard
+                label="Unrealized P&L"
+                value={formatCurrency(advanced.data.unrealized_pnl)}
+                tone={advanced.data.unrealized_pnl >= 0 ? 'positive' : 'negative'}
+              />
+              <StatCard
+                label="Realized P&L"
+                value={formatCurrency(advanced.data.realized_pnl)}
+                tone={advanced.data.realized_pnl >= 0 ? 'positive' : 'negative'}
+                sub="Since Phase 31's transaction logging began -- sells before then aren't included"
+              />
+              <StatCard
+                label="Total P&L"
+                value={formatCurrency(advanced.data.total_pnl)}
+                tone={advanced.data.total_pnl >= 0 ? 'positive' : 'negative'}
+                sub={<DataSourceBadge source={advanced.data.data_source} />}
+              />
+            </div>
+
+            <Card title="Portfolio vs. NIFTY 50" subtitle="Portfolio value compared to a NIFTY 50 buy-and-hold with the same starting value">
+              {advanced.data.points.length > 0 ? (
+                <BenchmarkComparisonChart points={advanced.data.points} benchmark={advanced.data.benchmark} />
+              ) : (
+                <EmptyBlock title="Not enough data" message="Add holdings with price history to compare performance." />
+              )}
+            </Card>
+
+            <Card title="Drawdown" subtitle="Decline from the running peak portfolio value over the lookback window">
+              {advanced.data.drawdown.length > 0 ? (
+                <DrawdownChart points={advanced.data.drawdown} />
+              ) : (
+                <EmptyBlock title="Not enough data" message="Add holdings with price history to compute drawdown." />
+              )}
+            </Card>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <Card title="Holding Contribution to P&L" subtitle="Share of total unrealized P&L contributed by each holding">
+                {advanced.data.holding_contributions.length > 0 ? (
+                  <HorizontalBarChart
+                    data={advanced.data.holding_contributions.map((c, i) => ({
+                      label: c.symbol,
+                      value: c.contribution_pct,
+                      color: colorForIndex(i),
+                    }))}
+                    valueFormatter={(v) => `${v.toFixed(1)}%`}
+                    height={Math.max(200, advanced.data.holding_contributions.length * 38)}
+                  />
+                ) : (
+                  <EmptyBlock title="No contribution data" message="Add holdings to compute P&L contribution." />
+                )}
+              </Card>
+
+              <Card title="Sector Contribution to P&L" subtitle="Share of total unrealized P&L contributed by each sector">
+                {advanced.data.sector_contributions.length > 0 ? (
+                  <HorizontalBarChart
+                    data={advanced.data.sector_contributions.map((c, i) => ({
+                      label: c.sector,
+                      value: c.contribution_pct,
+                      color: colorForIndex(i),
+                    }))}
+                    valueFormatter={(v) => `${v.toFixed(1)}%`}
+                    height={Math.max(200, advanced.data.sector_contributions.length * 38)}
+                  />
+                ) : (
+                  <EmptyBlock title="No contribution data" message="Add holdings to compute sector contribution." />
+                )}
+              </Card>
+            </div>
+          </>
         )}
       </section>
 

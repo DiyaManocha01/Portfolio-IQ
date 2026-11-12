@@ -1,5 +1,6 @@
 import { api } from './api';
 import type {
+  AdvancedPerformance,
   Holding,
   PortfolioSummary,
   PortfolioPerformance,
@@ -10,6 +11,8 @@ import type {
   PortfolioRiskAttribution,
   PortfolioOptimization,
   OptimizationMethod,
+  SellRequest,
+  TransactionOut,
   WhatIfChange,
   WhatIfResult,
 } from '../types/api';
@@ -26,6 +29,21 @@ export async function addHolding(symbol: string, quantity: number, avg_buy_price
 
 export async function removeHolding(holdingId: number): Promise<void> {
   await api.delete(`/portfolio/holdings/${holdingId}`);
+}
+
+export async function sellHolding(holdingId: number, payload: SellRequest): Promise<TransactionOut> {
+  const res = await api.post<TransactionOut>(`/portfolio/holdings/${holdingId}/sell`, payload);
+  return res.data;
+}
+
+export async function listTransactions(): Promise<TransactionOut[]> {
+  const res = await api.get<TransactionOut[]>('/portfolio/transactions');
+  return res.data;
+}
+
+export async function getAdvancedPerformance(days = 180): Promise<AdvancedPerformance> {
+  const res = await api.get<AdvancedPerformance>('/portfolio/performance/advanced', { params: { days } });
+  return res.data;
 }
 
 export async function getSummary(): Promise<PortfolioSummary> {
