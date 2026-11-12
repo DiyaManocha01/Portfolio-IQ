@@ -40,6 +40,22 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 
+    # --- Phase 34: production readiness ---
+    # Structured logging level, configurable per-environment without a code
+    # change. Default INFO (not the previous hardcoded WARNING) so request
+    # logging and the new correlation-ID middleware actually produce output
+    # by default; set to WARNING or ERROR in a noisy production deployment
+    # if desired.
+    LOG_LEVEL: str = "INFO"
+
+    # Error tracking (Sentry). Empty by default -- sentry_sdk.init() is
+    # simply never called, so this is a true no-op in this sandbox and for
+    # anyone who hasn't set up a Sentry project, same pattern as
+    # ANTHROPIC_API_KEY/ANGELONE_*. Never commit a real DSN; set it in your
+    # local .env only. See docs/security-review.md.
+    SENTRY_DSN: str = ""
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

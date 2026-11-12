@@ -61,6 +61,7 @@ to `requirements.txt` / `package.json`.
 | **requests** | 2.34.2 | Apache-2.0 | Phase 24 (promoted from transitive-via-yfinance to an explicit direct dependency) | Angel One REST auth (`angelone_auth.py`) and the local instrument-fetch script |
 | **websockets** | 17.4 | BSD-3-Clause | Phase 24 | Async WebSocket client for the Angel One real-time feed (`angelone_ws_client.py`, `ws_connection_manager.py`) -- chosen over the official `smartapi-python` SDK, which declares no license on PyPI or in its GitHub repo (checked, not found); see ADR 0008 |
 | **pyotp** | 2.10.0 | MIT | Phase 24 | Generates TOTP codes for the Angel One login flow (`angelone_auth.py`) |
+| **sentry-sdk** | 2.74.0 | MIT | Phase 34 | Error tracking -- a true no-op (`sentry_sdk.init()` is never called) unless `SENTRY_DSN` is set in a local `.env`; see `docs/security-review.md` |
 
 All Phase 9 transitive dependencies checked individually — all permissive
 (MIT/Apache-2.0/BSD-3-Clause), no copyleft. None are pinned in
@@ -125,3 +126,10 @@ expanded context reuses `fit_snapshot_service.py` (Phase 29),
 (Phase 31), `WhatIfService` (Phase 11), and `analytics.py` (already
 vetted); the new `whatif_parser.py` uses only the standard-library `re`
 module, per ADR 0015.
+
+**Phase 34 note:** one new dependency, `sentry-sdk` (row above) -- a
+real third-party SaaS integration, deliberately opt-in (empty `SENTRY_
+DSN` by default). Everything else added this phase (structured JSON
+logging, the request-correlation-ID middleware, the extended `/health`
+check, the DB backup script) uses only the standard library plus
+`alembic` (already vetted, Phase 1) to read the current migration head.

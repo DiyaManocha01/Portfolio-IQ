@@ -2,17 +2,19 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.routes import (
     alerts,
     assistant,
     auth,
     discover,
+    health,
     ledger,
     market,
     paper_trading,
@@ -25,6 +27,7 @@ from app.config import settings
 from app.database.session import SessionLocal
 from app.models.alert import AlertRule
 from app.services.alert_service import evaluate_rules
+from app.services.logging_config import configure_logging, monotonic_ms, new_request_id, request_id_var
 from app.services.market_data import session_calendar, snapshot_service
 from app.services.market_data.fixture_replay_provider import refresh_once as refresh_fixture_cache
 from app.services.market_data.instrument_registry import instrument_registry
@@ -32,8 +35,57 @@ from app.services.market_data.live_cache import live_cache
 from app.services.market_data.ws_connection_manager import WSConnectionManager
 from app.services.rate_limit import limiter
 
-logging.basicConfig(level=logging.WARNING)
+configure_logging(settings.LOG_LEVEL)
 logger = logging.getLogger("portfolioiq")
+
+# Phase 34: error tracking. A true no-op (sentry_sdk.init is simply never
+# called) unless SENTRY_DSN is set in a local .env -- see
+# docs/security-review.md and app/config.py's comment on SENTRY_DSN.
+if settings.SENTRY_DSN:
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+    )
+
+
+class RequestContextMiddleware(BaseHTTPMiddleware):
+    """Assigns a correlation ID to every request (reused from the
+    `X-Request-ID` header if the caller already sent one, e.g. a
+    reverse proxy that generated it first), makes it available to
+    JsonFormatter via `request_id_var` for the whole request's log lines,
+    echoes it back as a response header, and logs one structured line per
+    request with method/path/status/duration -- the "API monitoring"
+    this project needs without standing up a separate metrics stack."""
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID") or new_request_id()
+        token = request_id_var.set(request_id)
+        start = monotonic_ms()
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception(
+                "request failed",
+                extra={"method": request.method, "path": request.url.path, "duration_ms": round(monotonic_ms() - start, 1)},
+            )
+            raise
+        else:
+            response.headers["X-Request-ID"] = request_id
+            logger.info(
+                "request completed",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": response.status_code,
+                    "duration_ms": round(monotonic_ms() - start, 1),
+                },
+            )
+            return response
+        finally:
+            request_id_var.reset(token)
 
 # Two known placeholder values a developer can end up running with: the
 # Settings class default (app/config.py), and the .env.example value
@@ -137,6 +189,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(RequestContextMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -157,6 +210,7 @@ app.include_router(market.router)
 app.include_router(screener.router)
 app.include_router(alerts.router)
 app.include_router(paper_trading.router)
+app.include_router(health.router)
 
 
 @app.get("/")
@@ -172,6 +226,3 @@ def root():
     }
 
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
