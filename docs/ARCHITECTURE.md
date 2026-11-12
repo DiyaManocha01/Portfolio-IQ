@@ -94,12 +94,13 @@ backend/
       paper_trading_service.py            # hypothetical account: buy/sell, valuation, performance (Phase 28)
       fit_snapshot_service.py              # caches a Fit result, explains why it moved (Phase 29)
     assistant/
-      context_builder.py       # deterministic keyword-based data router (Phase 19)
+      context_builder.py       # deterministic keyword-based data router (Phase 19; Fit Engine/market regime/performance/what-if triggers added Phase 32)
       assistant_service.py      # system prompt, Claude API call, guardrail filter (Phase 19)
+      whatif_parser.py           # conservative regex what-if-question -> WhatIfService input (Phase 32)
     data/
       seed.py                 # dev seed script: stocks, market data, news, demo user, trains ML
       models/                  # trained model artifacts (joblib) + metadata.json, gitignored
-    tests/                    # pytest suite, 394 tests
+    tests/                    # pytest suite, 415 tests
   Dockerfile                  # multi-stage build (Phase 22)
   docker-entrypoint.sh         # migrate -> seed/train (once) -> uvicorn (Phase 22)
 ```

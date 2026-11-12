@@ -617,6 +617,25 @@ render the disclaimer. Requires auth (unlike the public `/ledger/*`
 endpoints) -- this answers questions about the current user's own
 portfolio.
 
+**Phase 32:** `sources_used` can also include `fit_engine:<symbols>`
+("fit score"/"portfolio fit" keywords + a mentioned stock),
+`market_conditions` ("market condition"/"regime"/"nifty"/etc. keywords
+-- always includes NIFTY 50, plus any mentioned stock), and
+`historical_performance` ("performance"/"returns"/"drawdown"/
+"benchmark" keywords -- a summary, not the full daily series; see `GET
+/portfolio/performance/advanced` for that). A "what if" question
+("what if"/"hypothetical"/"if I added"/etc. keywords) adds either
+`what_if_simulation:<symbol>` (a real `WhatIfService` simulation ran)
+or `what_if_simulation:unparsed`/`what_if_simulation:error` (the
+question's hypothetical couldn't be confidently parsed into one stock
+and a share quantity, or the parsed scenario couldn't actually be
+simulated -- e.g. not enough price history -- either way the `answer`
+says so plainly rather than inventing a result). The context JSON also
+always carries a `context_compiled_at` timestamp; the assistant is
+instructed to cite a data block's own `as_of`/`computed_at` field when
+present and that timestamp otherwise. See
+`docs/adr/0015-assistant-context-expansion.md`.
+
 ## Real-Time Market Data (Phase 24/25)
 
 ### GET /market/status

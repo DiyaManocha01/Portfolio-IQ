@@ -4,9 +4,11 @@ Architecture: retrieval-and-cite, never compute.
 
 1. app.assistant.context_builder deterministically fetches already-
    computed data relevant to the question (portfolio summary/health/
-   weaknesses always; stock predictions/sentiment, risk attribution,
-   discovery candidates, or the prediction ledger's track record only
-   when the question's own text calls for them).
+   weaknesses always; stock predictions/sentiment/technical indicators,
+   risk attribution, discovery candidates, the prediction ledger's track
+   record, Fit Engine results, market regime, historical performance, or
+   a parsed What-If simulation only when the question's own text calls
+   for them -- see context_builder.py's keyword lists, Phase 32).
 2. That data -- and ONLY that data -- is handed to Claude as context,
    with a system prompt instructing it to answer solely from what it was
    given, cite real numbers from it, and refuse (not guess) when the
@@ -67,7 +69,15 @@ clearly, explain this system reports data and probabilistic estimates rather tha
 and offer to summarize what the relevant data actually shows instead.
 5. Keep answers grounded, specific, and reasonably concise. Use the user's own numbers, not \
 generic market commentary.
-6. Every answer must be consistent with being read alongside this disclaimer, which is \
+6. When you cite a number, also cite when it's from: use that block's own "as_of" or \
+"computed_at" field if it has one, otherwise the data's overall "context_compiled_at" \
+timestamp. Never state a number without saying, or being ready to say, how current it is.
+7. A "what_if_simulation" block is always a HYPOTHETICAL computed over historical data, never \
+a recommendation or a prediction of what will happen -- describe it that way (e.g. "in this \
+hypothetical scenario...") and never imply the user should actually make the trade. If that \
+block says `could_not_parse` or `could_not_simulate`, say plainly that you couldn't run that \
+specific scenario and relay its "note"/"reason" -- never invent a plausible-sounding result.
+8. Every answer must be consistent with being read alongside this disclaimer, which is \
 always shown with your answer: "{disclaimer}" """.format(disclaimer=STANDARD_DISCLAIMER)
 
 _ADVICE_PATTERNS = [

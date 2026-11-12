@@ -690,6 +690,40 @@ UI, the methodology doc, or a future paper, it's listed here.
   output for embedded numbers and cross-checking them, not attempted
   here).
 
+### Phase 32 additions
+
+- **The What-If parser (`app/assistant/whatif_parser.py`) only
+  recognizes two phrasings, deliberately** (a project decision, not an
+  oversight -- see ADR 0015): an explicit share count ("added/sold N
+  shares of X") or a full exit ("sold all my X"), against exactly one
+  mentioned stock. Weight-based phrasing ("at 10% weight"), a
+  quantity-free request ("what if I added some RELIANCE"), and
+  multi-stock scenarios ("what if I added X and sold Y") all return
+  `could_not_parse` rather than a guessed result -- a real coverage gap
+  for anyone asking the assistant those questions, not a crash. The
+  Portfolio Lab's What-If Simulator (Phase 11/20) handles all of these
+  directly.
+- **`historical_performance` is a summary, not the full daily series**
+  -- an LLM asked to describe a 180-point series in prose risks
+  restating a value as a slightly different number even when told to
+  cite near-verbatim; the summary avoids handing it a wrong-restating
+  opportunity it doesn't need, but means a question like "what was my
+  return on March 3rd specifically" cannot be answered by the assistant
+  even though the full series exists at `GET /portfolio/performance/
+  advanced`.
+- **`market_conditions` and `fit_engine` only trigger with the right
+  keywords plus a mentioned stock (for `fit_engine`) or trigger
+  market-wide regardless of a stock being named (for
+  `market_conditions`)** -- same category of over/under-triggering
+  already documented above for Phase 19's original keyword sets.
+- **`context_compiled_at` is a single top-level timestamp, not a
+  per-block one for every piece of data.** Phase 19's original blocks
+  (`portfolio_summary`, `portfolio_health`, `portfolio_weaknesses`,
+  `stock_details`) have no block-level timestamp of their own; the
+  assistant is instructed to fall back to `context_compiled_at` for
+  those, which is accurate for when the context was assembled but not
+  for when each underlying number was actually computed/cached.
+
 ## Infrastructure
 
 - **Alembic only has one migration (the baseline)** as of Phase 4 — schema

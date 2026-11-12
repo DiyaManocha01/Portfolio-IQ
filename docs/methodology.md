@@ -1233,14 +1233,16 @@ about the current user's own portfolio).
    already-computed data to fetch, via plain keyword/symbol matching
    (same style as Phase 15's `scenario_parser.py`) -- never by asking the
    LLM what it needs. Always includes portfolio summary/health/weaknesses;
-   additionally fetches stock predictions/sentiment (if a symbol is named
-   in the question), risk + risk-attribution (risk/volatility/
-   concentration/diversification keywords), discovery candidates ("new
-   stock"/"candidate"/"discover" keywords), or the prediction ledger's
-   track record ("track record"/"accuracy"/"history" keywords). Every
-   fetched block is listed in `sources_used`, so exactly what data a
-   given question had access to is always inspectable and testable
-   without a live LLM call.
+   additionally fetches stock predictions/sentiment/technical indicators
+   (if a symbol is named in the question), risk + risk-attribution (risk/
+   volatility/concentration/diversification keywords), discovery
+   candidates ("new stock"/"candidate"/"discover" keywords), the
+   prediction ledger's track record ("track record"/"accuracy"/"history"
+   keywords), Fit Engine results, market regime, historical performance,
+   or a parsed What-If simulation (see Section 19, Phase 32, for these
+   four). Every fetched block is listed in `sources_used`, so exactly
+   what data a given question had access to is always inspectable and
+   testable without a live LLM call.
 2. **Claude receives ONLY that data** as a JSON block plus the question,
    with a system prompt instructing it to answer solely from what it was
    given, cite real numbers near-verbatim, and explicitly refuse rather
@@ -1403,6 +1405,76 @@ benchmark_value_t = V_0 * (nifty_close_t / nifty_close_0)
 
 Not a backtested strategy, not risk-adjusted -- nothing more elaborate
 is claimed.
+
+## 19. AI Assistant Context Expansion (Phase 32)
+
+Extends Phase 19's assistant (Section 16) with four more keyword-
+triggered context blocks, all composed from already-existing, already-
+tested services -- no new calculation logic. See ADR 0015 for the full
+rationale, including why historical performance is summarized rather
+than handed over in full and why the What-If parser is deliberately
+conservative.
+
+### 19.1 Fit Engine, market conditions, historical performance
+
+- `fit_engine` ("fit score"/"portfolio fit" keywords + a mentioned
+  stock): `fit_snapshot_service.get_fit_with_change` (Phase 29), reused
+  as-is, per mentioned stock.
+- `market_conditions` ("market condition"/"regime"/"nifty"/"bull
+  market"/etc. keywords): NIFTY 50's regime always included, plus any
+  mentioned stock's own regime, via `market_regime_service.
+  classify_regime` (Phase 30), reused as-is.
+- `historical_performance` ("performance"/"returns"/"drawdown"/
+  "benchmark" keywords): a summary, not the full series, of
+  `portfolio_performance_service.get_advanced_performance` (Phase 31) --
+  unrealized/realized/total P&L, realized volatility, the latest
+  cumulative return, max drawdown, and the top holding/sector
+  contributions.
+- `stock_details` additionally includes `analytics.compute_indicators`
+  (the same technical indicators `GET /stocks/{symbol}` serves) for each
+  mentioned stock.
+
+### 19.2 What-If simulation parsing
+
+`app/assistant/whatif_parser.py` (styled after Phase 15's
+`scenario_parser.py`) recognizes exactly two phrasings against a single
+mentioned stock:
+
+```
+"added/bought N shares of X"  -> new_quantity = current_qty + N
+"sold/removed N shares of X"  -> new_quantity = max(current_qty - N, 0)
+"sold/removed all my X"       -> new_quantity = 0
+```
+
+Anything else -- a weight-based phrasing, no extractable quantity, more
+than one mentioned stock, or ambiguous add/remove language -- returns
+`None`. When `WHATIF_KEYWORDS` fire ("what if"/"hypothetical"/"if I
+added"/etc.) but parsing returns `None`, the context still carries a
+`what_if_simulation` block: `{"could_not_parse": True, "note": "..."}"`,
+so the assistant can say plainly it couldn't run that scenario rather
+than silently having nothing to say about it. A successful parse calls
+the existing `WhatIfService.simulate()` (Phase 11) unchanged and returns
+its real output plus the parser's own `interpreted_as` note describing
+exactly what scenario was run.
+
+### 19.3 Timestamp citation
+
+Phase 29/30/31's services already attach their own `computed_at`/
+`as_of` field. `build_context()` additionally always adds a top-level
+`context_compiled_at` (UTC, set when that call runs) rather than
+retrofitting a timestamp onto Phase 19's older blocks, which were never
+asked to carry one. The system prompt (rule 6) has the assistant cite a
+block's own timestamp field when present, and `context_compiled_at`
+otherwise.
+
+### 19.4 What is and isn't tested here
+
+Same boundary as Phase 19 (Section 16.2): every new trigger's inclusion/
+exclusion logic and the parser's accept/refuse behavior are deterministic
+and unit-tested (15 new tests); whether the live Claude API call actually
+follows the two new system-prompt rules in practice is not testable in
+this sandbox (no `ANTHROPIC_API_KEY` configured here), same as Phase
+19's own untested LLM round-trip.
 
 ### 18.4 Sector- and holding-level P&L contribution
 

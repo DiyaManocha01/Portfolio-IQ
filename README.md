@@ -33,7 +33,7 @@ model-based estimates and are not guaranteed financial advice.
 - **NLP**: Hugging Face Transformers / FinBERT (optional, see below), with a
   lexicon-based sentiment provider as the offline default
 - **AI assistant**: Anthropic Claude API (retrieval-and-cite only — see `docs/methodology.md` Section 16)
-- **Testing**: pytest (backend, 394 tests), Vitest (frontend, 66 tests)
+- **Testing**: pytest (backend, 415 tests), Vitest (frontend, 66 tests)
 - **Deployment**: Docker Compose (see `docs/DEPLOYMENT.md`)
 
 ## Project structure
@@ -83,7 +83,7 @@ Backend now running at http://localhost:8000 (interactive docs at `/docs`).
 Run tests (with the backend's venv active, DB seeded, and the server importable):
 
 ```bash
-python -m pytest app/tests/ -v   # 394 tests
+python -m pytest app/tests/ -v   # 415 tests
 ```
 
 ### Demo login
@@ -245,6 +245,15 @@ the full provider-abstraction pattern.
   recomputing them. Corporate actions (splits/dividends) are handled via
   `yfinance`'s own `auto_adjust=True`, not separate logic. See
   `docs/adr/0014-portfolio-transaction-ledger.md`.
+- **AI Assistant Context Expansion** (Phase 32): the assistant (Phase
+  19) now also answers questions about Fit Engine results, market
+  conditions/regime, historical performance, and What-If scenarios --
+  all composed from the same already-tested services above, plus a new,
+  deliberately conservative regex parser (`whatif_parser.py`) that turns
+  a plain-English hypothetical ("what if I added 10 shares of
+  RELIANCE?") into a real `WhatIfService` simulation, or explicitly says
+  it couldn't parse one rather than guessing. See
+  `docs/adr/0015-assistant-context-expansion.md`.
 
 ## Known limitations (honestly, and extended every phase)
 

@@ -118,3 +118,10 @@ Performance reuses `portfolio_calc.py`, `PortfolioRiskService` (Phase
 8), and `analytics.py` (all already vetted); the only change to an
 existing dependency's usage is passing `auto_adjust=True` explicitly to
 the already-vetted `yfinance` (Apache-2.0, Phase 4), per ADR 0014.
+
+**Phase 32 note:** no new dependencies were added -- the assistant's
+expanded context reuses `fit_snapshot_service.py` (Phase 29),
+`market_regime_service.py` (Phase 30), `portfolio_performance_service.py`
+(Phase 31), `WhatIfService` (Phase 11), and `analytics.py` (already
+vetted); the new `whatif_parser.py` uses only the standard-library `re`
+module, per ADR 0015.
