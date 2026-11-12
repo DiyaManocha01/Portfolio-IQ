@@ -20,12 +20,20 @@ from app.config import settings
 from app.database.session import get_db
 from app.models.intraday_candle import IntradayCandle
 from app.models.stock import Stock
-from app.schemas.market import CandleOut, CandlesOut, MarketStatusOut, TickOut
+from app.schemas.market import CandleOut, CandlesOut, MarketStatusOut, RegimeFactorOut, RegimeOut, TickOut
+from app.services import market_regime_service
 from app.services.market_data import session_calendar
 from app.services.market_data.live_cache import live_cache
+from app.services.market_data.service import MarketDataService
 from app.services.market_data.tick_normalizer import TickStatus
 from app.services.market_data.watchlist import WATCHLIST_SYMBOLS
 from app.services.security import decode_access_token
+
+# Enough CALENDAR days (not trading days -- dev-sample data is business-days
+# only, ~5/7 of calendar days) to comfortably cover classify_regime's
+# trend_window + lookback_days (60 + 252 = 312 trading days).
+REGIME_HISTORY_DAYS = 500
+_MARKET_ALIASES = {"NIFTY50", "NIFTY", "MARKET", "^NSEI"}
 
 logger = logging.getLogger("portfolioiq.market_data.route")
 
@@ -119,6 +127,36 @@ def get_intraday_candles(symbol: str, limit: int = 390, db: Session = Depends(ge
             )
             for r in rows
         ],
+    )
+
+
+@router.get("/market/regime", response_model=RegimeOut)
+def get_market_regime(symbol: str | None = None, db: Session = Depends(get_db)):
+    """Classifies the current regime for `symbol`, or the NIFTY 50 market
+    benchmark if no symbol is given -- see app/services/market_regime_service.py
+    for the (rule-based, not trained-ML) method and docs/adr/0013.
+    """
+    market_data = MarketDataService(db)
+    is_market = symbol is None or symbol.upper() in _MARKET_ALIASES
+
+    if is_market:
+        bars = market_data.get_benchmark_history(days=REGIME_HISTORY_DAYS)
+        out_symbol = "NIFTY50"
+    else:
+        stock = market_data.get_or_create_stock(symbol)
+        bars = market_data.get_history(stock, days=REGIME_HISTORY_DAYS)
+        out_symbol = stock.symbol
+
+    result = market_regime_service.classify_regime(bars)
+    return RegimeOut(
+        symbol=out_symbol,
+        regime=result["regime"],
+        display_name=result["display_name"],
+        confidence=result["confidence"],
+        factors=[RegimeFactorOut(**f) for f in result["factors"]],
+        as_of=result["as_of"],
+        note=result["note"],
+        data_source=market_data.data_source_label,
     )
 
 

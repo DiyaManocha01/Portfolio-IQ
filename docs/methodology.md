@@ -1281,8 +1281,91 @@ Uses the official `anthropic` Python SDK (MIT license), configurable via
 written -- check `https://docs.claude.com/en/docs/about-claude/models`
 for what's current, since this default will age).
 
+## 17. Market Regime Detection (Phase 30)
+
+Implemented in `backend/app/services/market_regime_service.py`.
+Classifies the current regime as one of TRENDING_UP, TRENDING_DOWN,
+SIDEWAYS, HIGH_VOLATILITY, LOW_VOLATILITY via deterministic thresholds
+on two features, computed from a trailing window of OHLCV bars.
+
+### 17.1 Trend feature: a z-statistic against a zero-drift null
+
+```
+trend_raw   = close[t] / close[t - N] - 1          (N = 60 trading days)
+daily_vol   = std(daily returns over the trailing 20 days)
+expected_noise_std = daily_vol * sqrt(N)
+trend_z     = trend_raw / expected_noise_std
+```
+
+This tests "is the realized N-day move large relative to what pure
+zero-drift noise, at the recently observed volatility, would be
+expected to produce over N days" -- a standard z-statistic, not a
+z-score against the trend's own trailing history (that alternative was
+tried and rejected: a market trending steadily for a long time has that
+same trend baked into its own recent past, so it would self-normalize
+to "nothing unusual," which defeats the purpose -- see ADR 0013).
+
+### 17.2 Volatility feature: a z-score against its own trailing history
+
+```
+vol_raw  = std(daily returns over the trailing 20 days) * sqrt(252)
+vol_z    = (vol_raw - mean(vol_raw over trailing 252 days)) / std(vol_raw over trailing 252 days)
+```
+
+Unlike trend, self-referential z-scoring IS the right null here: "is
+recent volatility unusual relative to this stock's/index's own normal
+range."
+
+### 17.3 Classification rule
+
+```
+if |vol_z| >= 1.0:   regime = HIGH_VOLATILITY if vol_z > 0 else LOW_VOLATILITY
+elif trend_z >= 1.0: regime = TRENDING_UP
+elif trend_z <= -1.0: regime = TRENDING_DOWN
+else:                regime = SIDEWAYS
+```
+
+Both thresholds are exactly 1.0 standard deviation -- round, standard,
+and deliberately equal in magnitude for both features (no untuned
+asymmetry to justify; there is no ground-truth label to tune against
+in the first place). Volatility is checked first and overrides trend
+when both would otherwise apply.
+
+### 17.4 Confidence
+
+```
+margin = (the amount the decisive feature's |z| exceeded its threshold by,
+          for TRENDING_*/HIGH|LOW_VOLATILITY; or the smaller of the two
+          remaining gaps to either threshold, for SIDEWAYS)
+confidence = tanh(margin / 2)
+```
+
+Bounded in [0, 1), exactly 0 at a decision boundary, approaching 1 far
+from it. This is explicitly **not a probability** -- there is no
+calibration target (no ground-truth regime labels exist to calibrate
+against), unlike the Phase 6 ML classifier's calibrated probability.
+
+### 17.5 Evaluation without ground truth
+
+No labeled "this day was actually regime X" dataset exists or could be
+constructed without itself being a subjective judgment call (CLAUDE.md
+rule 5: never invent data). Accuracy/precision/recall are therefore not
+reported, since there is nothing honest to compute them against.
+Instead, `backend/app/tests/test_market_regime.py` verifies
+**directional consistency** on synthetic data with a known generating
+process: sustained positive/negative drift is modally (not always, since
+volatility can override) classified TRENDING_UP/DOWN; a genuine recent
+volatility spike or collapse is classified HIGH/LOW_VOLATILITY on every
+trial, since that IS the feature being measured directly, with nothing
+else to override it. A separate test verifies the no-look-ahead property:
+classifying "as of" an earlier date reproduces the identical result
+regardless of whether later bars exist elsewhere in the same process.
+
+Full design rationale, including the self-referential-trend-z-score bug
+caught during development: `docs/adr/0013-market-regime-detection.md`.
+
 ---
 
-*(Sections 17+ — UI/UX polish, testing/security, deployment, and final
+*(Sections 18+ — UI/UX polish, testing/security, deployment, and final
 documentation — are added as each corresponding phase is implemented,
 not written in advance.)*

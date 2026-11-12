@@ -9,6 +9,7 @@ import { Card } from '../components/Card';
 import { StatCard } from '../components/StatCard';
 import { ErrorBlock, LoadingBlock, EmptyBlock } from '../components/States';
 import { ConfidenceBadge, DataSourceBadge, DirectionBadge, SentimentBadge, TickStatusBadge } from '../components/Badge';
+import { RegimeCard } from '../components/RegimeCard';
 import { PriceHistoryChart } from '../charts/PriceHistoryChart';
 import { IntradayChart } from '../charts/IntradayChart';
 import { RsiChart } from '../charts/RsiChart';
@@ -29,6 +30,7 @@ export default function StockDetailPage() {
   const sentiment = useAsync(() => stockService.getSentiment(symbol), [symbol]);
   const candles = useAsync(() => marketService.getCandles(symbol), [symbol]);
   const fundamentals = useAsync(() => stockService.getFundamentals(symbol), [symbol]);
+  const regime = useAsync(() => marketService.getRegime(symbol), [symbol]);
   const feed = useMarketFeed();
   const liveTick = feed.data?.ticks.find((t) => t.symbol === symbol.toUpperCase());
 
@@ -66,9 +68,11 @@ export default function StockDetailPage() {
 
           {tab === 'overview' && (
             <OverviewTab
+              symbol={symbol}
               detail={detail.data}
               candles={candles.data?.candles ?? []}
               candlesLoading={candles.loading}
+              regime={regime.data}
             />
           )}
           {tab === 'analysis' && (
@@ -140,13 +144,17 @@ function QuoteRow({ quote, liveTick }: { quote: import('../types/api').StockQuot
 }
 
 function OverviewTab({
+  symbol,
   detail,
   candles,
   candlesLoading,
+  regime,
 }: {
+  symbol: string;
   detail: import('../types/api').StockDetail;
   candles: import('../types/api').CandleOut[];
   candlesLoading: boolean;
+  regime: import('../types/api').RegimeOut | null;
 }) {
   const { indicators, history } = detail;
   return (
@@ -174,6 +182,8 @@ function OverviewTab({
           <EmptyBlock title="No price history" message="Historical data is not available for this stock." />
         )}
       </Card>
+
+      {regime && <RegimeCard regime={regime} title={`${symbol} Regime`} />}
 
       <Card title="Technical Indicators" subtitle="Computed from recent price and volume data">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

@@ -46,6 +46,7 @@ backend/
       news_service.py        # news generation + sentiment orchestration
       screener_service.py    # fundamental + technical stock screener (Phase 26)
       alert_service.py       # alert rule evaluation dispatcher + dedup (Phase 27)
+      market_regime_service.py  # rule-based trend/volatility regime classifier (Phase 30)
       market_data/
         providers.py         # MarketDataProvider abstraction (DevSample + LiveYFinance)
         service.py            # MarketDataService: caching layer over a provider
@@ -97,7 +98,7 @@ backend/
     data/
       seed.py                 # dev seed script: stocks, market data, news, demo user, trains ML
       models/                  # trained model artifacts (joblib) + metadata.json, gitignored
-    tests/                    # pytest suite, 360 tests
+    tests/                    # pytest suite, 378 tests
   Dockerfile                  # multi-stage build (Phase 22)
   docker-entrypoint.sh         # migrate -> seed/train (once) -> uvicorn (Phase 22)
 ```
@@ -199,6 +200,23 @@ One's official scrip master, fetched locally via
 unresolved symbol). Full rationale, provider comparison, and
 verified-vs-not status: `docs/adr/0008-realtime-market-data-angelone.md`.
 
+## Market Regime Detection (Phase 30)
+
+`GET /market/regime` (no auth, no new table) classifies the current
+regime -- TRENDING_UP, TRENDING_DOWN, SIDEWAYS, HIGH_VOLATILITY, or
+LOW_VOLATILITY -- for the NIFTY 50 benchmark by default, or any stock
+symbol. `app/services/market_regime_service.py` is a transparent,
+rule-based classifier (deterministic thresholds on a trend z-statistic
+and a volatility z-score), not a trained model -- there is no
+ground-truth regime label to train or validate against. Confidence is
+a bounded (0-1), non-probabilistic measure of distance from the
+decision threshold, and every factor used is returned with its own
+plain-language explanation. Full design rationale (including a caught
+bug -- the trend feature's first draft was self-referentially z-scored
+and so misclassified a textbook sustained uptrend as sideways) and the
+"defensible evaluation without ground-truth labels" approach:
+`docs/adr/0013-market-regime-detection.md`.
+
 ## ML pipeline
 
 `app/ml/train.py` pools OHLCV-derived features across all seeded stocks,
@@ -246,11 +264,12 @@ batch ranking is deliberately left uncached -- see ADR 0012.
 
 ```
 frontend/src/
-  components/   # shared UI pieces (cards, badges, tables, nav)
+  components/   # shared UI pieces (cards, badges, tables, nav;
+                 #   RegimeCard, Phase 30 -- used on both Market and StockDetail)
   pages/         # one file per route:
-                 #   Dashboard, Portfolio, Market (Phase 25), Stocks,
+                 #   Dashboard, Portfolio, Market (Phase 25; + regime card, Phase 30), Stocks,
                  #   StockDetail (+ live price/intraday chart, Phase 25;
-                 #   + Fundamentals tab, Phase 26), Screener (Phase 26),
+                 #   + Fundamentals tab, Phase 26; + regime card, Phase 30), Screener (Phase 26),
                  #   Alerts (rule builder + triggered-event feed, Phase 27),
                  #   PaperTrading (hypothetical buy/sell + performance, Phase 28),
                  #   Discover, Intelligence (risk + risk attribution),
@@ -269,9 +288,9 @@ frontend/src/
   test/          # Vitest setup (Phase 21)
 ```
 
-60 Vitest + React Testing Library tests cover `utils/format.ts`,
+61 Vitest + React Testing Library tests cover `utils/format.ts`,
 `useMarketFeed`, and smoke-level rendering (loading/error/data states,
-form submission) of the Phase 20, 25, 26, 27, 28, and 29 UI.
+form submission) of the Phase 20, 25, 26, 27, 28, 29, and 30 UI.
 
 ## Security (Phase 21)
 

@@ -176,6 +176,37 @@ UI, the methodology doc, or a future paper, it's listed here.
   model are only as fresh as whatever was last seeded/trained here, not
   live. See the Phase 4/24 limitations above for why.
 
+## Market Regime Detection (Phase 30)
+
+- **Not validated against any ground truth, because none exists.**
+  There is no dataset of "this day was actually a Trending/Sideways/
+  High-Vol regime" to check classifications against -- the tests verify
+  statistically expected *directional* behavior (sustained drift ->
+  modally the matching trend regime; a genuine volatility spike/collapse
+  -> always the matching volatility regime), not accuracy against
+  labeled outcomes. See ADR 0013.
+- **`confidence` is not a probability.** It is a bounded, monotonic
+  function of distance from the classification threshold, with no
+  calibration target -- do not treat it as "percent chance this regime
+  is correct."
+- **Thresholds are round, symmetric, and declared up front, not tuned.**
+  Both the trend and volatility z-thresholds are exactly 1.0 standard
+  deviation. A different, equally defensible choice would reclassify
+  some borderline cases differently; this is a property of any
+  threshold-based classifier with no ground truth to tune against, not
+  a flaw unique to this one.
+- **Volatility extremes always override trend**, by design -- a strongly
+  trending period whose recent volatility also happens to be unusual
+  will be reported as a volatility regime, not a trend regime. This is
+  documented, intentional behavior (see ADR 0013), not a missed trend.
+- **Not integrated into any other feature yet.** The regime classifier
+  is a standalone display (Market page, stock detail page) as of Phase
+  30 -- it does not feed into the Fit Engine, alerts, or What-If
+  Simulator. That would be a natural future extension.
+- **No regime has ever been classified against a real market move**,
+  since this sandbox has no live market-data feed -- see the Phase 4/24
+  limitations above for why.
+
 ## News & Sentiment (Phase 7)
 
 - **Headline-to-stock matching is unvalidated.** `services/news/matching.py`

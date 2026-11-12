@@ -108,3 +108,7 @@ vetted) for the performance series, per ADR 0011.
 **Phase 29 note:** no new dependencies were added -- the Dynamic Fit
 Engine's caching uses Python's standard-library `hashlib` and `json`
 plus the existing `PortfolioFitService` (Phase 10), per ADR 0012.
+
+**Phase 30 note:** no new dependencies were added -- Market Regime
+Detection reuses `app/services/analytics.py` (already vetted) and
+Python's standard-library `math`, per ADR 0013.

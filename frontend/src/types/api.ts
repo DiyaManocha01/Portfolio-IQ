@@ -455,6 +455,28 @@ export interface CandlesOut {
   candles: CandleOut[];
 }
 
+// --- Phase 30: Market Regime Detection ---
+
+export type MarketRegime = 'TRENDING_UP' | 'TRENDING_DOWN' | 'SIDEWAYS' | 'HIGH_VOLATILITY' | 'LOW_VOLATILITY';
+
+export interface RegimeFactorOut {
+  name: string;
+  raw_value: number;
+  z_score: number;
+  explanation: string;
+}
+
+export interface RegimeOut {
+  symbol: string;
+  regime: MarketRegime;
+  display_name: string;
+  confidence: number;
+  factors: RegimeFactorOut[];
+  as_of: string | null;
+  note: string | null;
+  data_source: 'DEV_SAMPLE' | 'LIVE';
+}
+
 // --- Phase 26: Fundamentals & Screener ---
 
 export interface FundamentalsOut {

@@ -6,11 +6,13 @@ import * as marketService from '../services/market';
 import { Card } from '../components/Card';
 import { ErrorBlock, LoadingBlock, EmptyBlock } from '../components/States';
 import { FeedStatusBadge, MarketSessionBadge, TickStatusBadge } from '../components/Badge';
+import { RegimeCard } from '../components/RegimeCard';
 import { formatCurrency, formatSignedPct, formatVolume, timeAgo } from '../utils/format';
 import type { TickOut } from '../types/api';
 
 export default function MarketPage() {
   const initial = useAsync(() => marketService.getMarketStatus(), []);
+  const regime = useAsync(() => marketService.getRegime(), []);
   const feed = useMarketFeed();
   const [query, setQuery] = useState('');
 
@@ -63,6 +65,8 @@ export default function MarketPage() {
           message="The watchlist cache hasn't been populated yet — this fills in automatically within about 30 seconds of the backend starting."
         />
       )}
+
+      {regime.data && <RegimeCard regime={regime.data} title="NIFTY 50 Market Regime" />}
 
       {ticks.length > 0 && (
         <>

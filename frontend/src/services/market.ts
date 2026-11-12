@@ -1,5 +1,5 @@
 import { api } from './api';
-import type { CandlesOut, MarketStatusOut } from '../types/api';
+import type { CandlesOut, MarketStatusOut, RegimeOut } from '../types/api';
 
 export async function getMarketStatus(): Promise<MarketStatusOut> {
   const res = await api.get<MarketStatusOut>('/market/status');
@@ -8,6 +8,12 @@ export async function getMarketStatus(): Promise<MarketStatusOut> {
 
 export async function getCandles(symbol: string, limit = 390): Promise<CandlesOut> {
   const res = await api.get<CandlesOut>(`/market/candles/${symbol}`, { params: { limit } });
+  return res.data;
+}
+
+/** Omit `symbol` for the NIFTY 50 market-wide regime. */
+export async function getRegime(symbol?: string): Promise<RegimeOut> {
+  const res = await api.get<RegimeOut>('/market/regime', { params: symbol ? { symbol } : {} });
   return res.data;
 }
 

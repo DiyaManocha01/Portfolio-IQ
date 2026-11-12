@@ -33,7 +33,7 @@ model-based estimates and are not guaranteed financial advice.
 - **NLP**: Hugging Face Transformers / FinBERT (optional, see below), with a
   lexicon-based sentiment provider as the offline default
 - **AI assistant**: Anthropic Claude API (retrieval-and-cite only — see `docs/methodology.md` Section 16)
-- **Testing**: pytest (backend, 360 tests), Vitest (frontend, 60 tests)
+- **Testing**: pytest (backend, 378 tests), Vitest (frontend, 61 tests)
 - **Deployment**: Docker Compose (see `docs/DEPLOYMENT.md`)
 
 ## Project structure
@@ -83,7 +83,7 @@ Backend now running at http://localhost:8000 (interactive docs at `/docs`).
 Run tests (with the backend's venv active, DB seeded, and the server importable):
 
 ```bash
-python -m pytest app/tests/ -v   # 360 tests
+python -m pytest app/tests/ -v   # 378 tests
 ```
 
 ### Demo login
@@ -110,7 +110,7 @@ Frontend now running at http://localhost:5173 (Vite default).
 Run frontend tests:
 
 ```bash
-npm test   # 60 tests (Vitest + React Testing Library)
+npm test   # 61 tests (Vitest + React Testing Library)
 ```
 
 ## Data sources: LIVE vs DEVELOPMENT SAMPLE
@@ -227,6 +227,15 @@ the full provider-abstraction pattern.
   most. This is what the `FIT_RANKING_CHANGE` alert evaluator (Phase 27)
   now uses instead of recomputing on every ~30s tick. See
   `docs/adr/0012-dynamic-fit-engine.md`.
+- **Market Regime Detection** (Phase 30): classifies the NIFTY 50
+  benchmark (or any stock) into one of five regimes -- trending up/down,
+  sideways, high/low volatility -- via a transparent, rule-based
+  classifier (a trend z-statistic against a zero-drift null, a
+  volatility z-score against its own trailing history), not a trained
+  model, since no ground-truth regime labels exist to train or validate
+  one against. Confidence is a bounded, non-probabilistic distance from
+  the decision threshold, and every factor is returned with its own
+  plain-language explanation. See `docs/adr/0013-market-regime-detection.md`.
 
 ## Known limitations (honestly, and extended every phase)
 

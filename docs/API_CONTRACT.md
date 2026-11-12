@@ -614,6 +614,32 @@ the token is missing or invalid. Multiple connected clients share one
 upstream broker connection server-side -- see
 `docs/adr/0008-realtime-market-data-angelone.md`.
 
+### GET /market/regime?symbol=... (Phase 30, no auth -- same reasoning as `/stocks/*`)
+Omit `symbol` for the NIFTY 50 market-wide regime; pass any stock
+symbol for that stock's own regime (same underlying classifier).
+```json
+{
+  "symbol": "NIFTY50", "regime": "LOW_VOLATILITY", "display_name": "Low Volatility",
+  "confidence": 0.519,
+  "factors": [
+    { "name": "Trend", "raw_value": 0.0221, "z_score": 0.371,
+      "explanation": "60-day cumulative return is +2.21%, 0.37 standard deviations above zero given recent volatility." },
+    { "name": "Volatility", "raw_value": 0.1223, "z_score": -2.149,
+      "explanation": "20-day annualized volatility is 12.23%, 2.15 standard deviations below its trailing 252-day average." }
+  ],
+  "as_of": "2026-11-12", "note": null, "data_source": "DEV_SAMPLE"
+}
+```
+`regime` is one of `TRENDING_UP` / `TRENDING_DOWN` / `SIDEWAYS` /
+`HIGH_VOLATILITY` / `LOW_VOLATILITY`, from a transparent, rule-based
+classifier -- NOT a trained model, and `confidence` is NOT a
+probability (there is no ground-truth regime label to calibrate
+against). See `docs/adr/0013-market-regime-detection.md` for the full
+method, including why volatility extremes always override trend.
+`note` is non-null (and `factors` empty) only when there isn't enough
+price history yet to classify, in which case the response defaults to
+`SIDEWAYS` with `confidence: 0`.
+
 ## Alerts (Phase 27, requires auth -- unlike `/stocks/*` and `/screener`)
 
 ### POST /alerts/rules

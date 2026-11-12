@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -40,3 +40,21 @@ class CandleOut(BaseModel):
 class CandlesOut(BaseModel):
     symbol: str
     candles: list[CandleOut]
+
+
+class RegimeFactorOut(BaseModel):
+    name: str
+    raw_value: float
+    z_score: float
+    explanation: str
+
+
+class RegimeOut(BaseModel):
+    symbol: str
+    regime: str  # TRENDING_UP | TRENDING_DOWN | SIDEWAYS | HIGH_VOLATILITY | LOW_VOLATILITY
+    display_name: str
+    confidence: float  # 0..1, NOT a probability -- see app/services/market_regime_service.py
+    factors: list[RegimeFactorOut]
+    as_of: date | None
+    note: str | None
+    data_source: str
