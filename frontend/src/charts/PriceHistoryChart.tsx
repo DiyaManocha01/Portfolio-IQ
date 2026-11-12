@@ -1,8 +1,14 @@
+import { memo } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { OHLCV } from '../types/api';
 import { formatCurrency, formatDate } from '../utils/format';
 
-export function PriceHistoryChart({ points }: { points: OHLCV[] }) {
+// Memoized: StockDetailPage re-renders every ~1s on each live-feed tick
+// (for its small live-price stat, unrelated to this chart's own data),
+// and `points` only ever changes when useAsync actually refetches --
+// skipping re-render/re-paint of this otherwise-expensive Recharts tree
+// on every tick is a real win, not a premature optimization.
+export const PriceHistoryChart = memo(function PriceHistoryChart({ points }: { points: OHLCV[] }) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <LineChart data={points} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
@@ -24,4 +30,4 @@ export function PriceHistoryChart({ points }: { points: OHLCV[] }) {
       </LineChart>
     </ResponsiveContainer>
   );
-}
+});

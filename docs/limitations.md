@@ -724,6 +724,75 @@ UI, the methodology doc, or a future paper, it's listed here.
   those, which is accurate for when the context was assembled but not
   for when each underlying number was actually computed/cached.
 
+## UI/UX and Performance Audit (Phase 33)
+
+Phase 33 asked for an improvement pass on responsive layouts, loading/
+empty/error states, chart responsiveness, navigation, accessibility,
+real-time update performance, and dark/light theme consistency. Rather
+than assume every item needed new code, each was audited against the
+actual codebase first; several were already in good shape and are
+documented here as audited-and-fine, not silently skipped:
+
+- **Loading/empty/error states**: already consistently implemented via
+  shared `LoadingBlock`/`EmptyBlock`/`ErrorBlock` components across 12
+  of 15 pages; the 3 exceptions (`LoginPage`, `RegisterPage`,
+  `AuthShell`) are auth forms with their own inline validation, which
+  reasonably don't need them. `getErrorMessage()` already has a
+  consistent fallback chain (API `detail` -> `Error.message` -> a
+  generic message). No changes made.
+- **Chart responsiveness**: every chart already wraps its Recharts tree
+  in `<ResponsiveContainer width="100%">`; the only fixed pixel values
+  are `YAxis`/`Bar` widths (normal Recharts label-sizing, not a
+  responsiveness bug). `CorrelationHeatmap` (a hand-built table, not a
+  Recharts chart) already scrolls horizontally on narrow screens via
+  `overflow-x-auto`. No changes made.
+- **Dark/light theme consistency**: the app is deliberately dark-only
+  (`color-scheme: dark` in `index.css`, a fixed dark palette in
+  `tailwind.config.js`) -- there is no light theme to be inconsistent
+  with. A repo-wide search for stray light-mode colors (`bg-white`,
+  `text-black`, ad hoc hex values) found none. Per CLAUDE.md's "keep the
+  existing visual identity unless there is a clear reason to change it,"
+  building an actual light theme from scratch was judged out of scope
+  for a polish phase and not attempted.
+
+Two real, concrete gaps were found and fixed:
+
+- **Accessibility**: the watchlist and stock-universe search inputs
+  (`MarketPage`, `StocksPage`) relied on `placeholder` text alone, which
+  isn't a reliable accessible name for all screen readers -- both now
+  have an explicit `aria-label`. The mobile navigation drawer
+  (`AppLayout`) could only be dismissed by clicking its backdrop, with
+  no keyboard path to close it and no scroll lock on the page behind it;
+  it now has `role="dialog" aria-modal="true"`, closes on `Escape` or a
+  visible close button, and locks body scroll while open. Verified with
+  Playwright against a real dev server + browser (dialog open/close/
+  Escape, both input labels, no console errors) and with 5 new frontend
+  tests.
+- **Real-time update performance**: `useMarketFeed`'s WebSocket push
+  (~1/sec) re-renders every component on `MarketPage` and
+  `StockDetailPage` that reads it, including components whose own data
+  never changes on a tick (the four technical-indicator/price charts on
+  `StockDetailPage`, and every `TickCard` on `MarketPage` regardless of
+  whether that symbol's own price moved). `TickCard` is now
+  `React.memo`-wrapped with a value-based comparator (tick objects are
+  freshly parsed from JSON every push, so reference equality alone
+  wouldn't help); `PriceHistoryChart`, `IntradayChart`, `RsiChart`, and
+  `MacdChart` are `React.memo`-wrapped with the default shallow
+  comparator, which is sufficient since their data props only change
+  when `useAsync` actually refetches, never on a feed tick. Not
+  independently profiled with React DevTools' own render-count tooling
+  in this sandbox; the fix follows directly from how React.memo's
+  bail-out works and was confirmed not to change visible behavior
+  (Playwright screenshots, no console errors).
+
+**A genuine gap found but deliberately not addressed in this phase**:
+the AI portfolio assistant (Phase 19, extended Phase 32) has no
+frontend at all -- no page, no chat UI, nothing calls `POST /assistant/
+ask`. Building one is a new feature, not a polish pass on existing UI,
+and was judged out of scope for "Phase 33: UI/UX and Performance."
+Flagged here so it isn't lost; a future phase would need to design and
+build an assistant chat page.
+
 ## Infrastructure
 
 - **Alembic only has one migration (the baseline)** as of Phase 4 — schema

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAsync } from '../hooks/useAsync';
 import { useMarketFeed } from '../hooks/useMarketFeed';
@@ -83,6 +83,7 @@ export default function MarketPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search watchlist symbol…"
+            aria-label="Search watchlist symbol"
             className="w-full rounded-lg border border-base-border bg-base-surface2 px-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 sm:w-72"
           />
 
@@ -121,7 +122,12 @@ function MoversList({ moves }: { moves: TickOut[] }) {
   );
 }
 
-function TickCard({ tick }: { tick: TickOut }) {
+// The live feed re-delivers the FULL watchlist (as a brand-new parsed
+// object) roughly once a second, so without a value-based comparator
+// every TickCard would re-render on every tick even when ITS symbol's
+// data hasn't actually changed -- memoized here so only the cards whose
+// own values moved actually re-render/repaint.
+const TickCard = memo(function TickCard({ tick }: { tick: TickOut }) {
   const positive = (tick.change ?? 0) >= 0;
   return (
     <Link to={`/stocks/${tick.symbol}`}>
@@ -146,4 +152,13 @@ function TickCard({ tick }: { tick: TickOut }) {
       </Card>
     </Link>
   );
-}
+},
+(prev, next) =>
+  prev.tick.symbol === next.tick.symbol &&
+  prev.tick.price === next.tick.price &&
+  prev.tick.change === next.tick.change &&
+  prev.tick.change_percent === next.tick.change_percent &&
+  prev.tick.volume === next.tick.volume &&
+  prev.tick.status === next.tick.status &&
+  prev.tick.last_traded_time === next.tick.last_traded_time
+);

@@ -1,8 +1,11 @@
+import { memo } from 'react';
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { AnalysisPoint } from '../types/api';
 import { formatDate, formatNumber } from '../utils/format';
 
-export function RsiChart({ points }: { points: AnalysisPoint[] }) {
+// Memoized -- see PriceHistoryChart.tsx's comment; same StockDetailPage,
+// same every-~1s live-feed re-render this chart's own data doesn't need.
+export const RsiChart = memo(function RsiChart({ points }: { points: AnalysisPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <LineChart data={points} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
@@ -20,4 +23,4 @@ export function RsiChart({ points }: { points: AnalysisPoint[] }) {
       </LineChart>
     </ResponsiveContainer>
   );
-}
+});

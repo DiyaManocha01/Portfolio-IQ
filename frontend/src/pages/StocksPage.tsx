@@ -29,6 +29,7 @@ export default function StocksPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search symbol, name, or sector…"
+          aria-label="Search stocks by symbol, name, or sector"
           className="w-full rounded-lg border border-base-border bg-base-surface2 px-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 sm:w-72"
         />
       </div>

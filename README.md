@@ -33,7 +33,7 @@ model-based estimates and are not guaranteed financial advice.
 - **NLP**: Hugging Face Transformers / FinBERT (optional, see below), with a
   lexicon-based sentiment provider as the offline default
 - **AI assistant**: Anthropic Claude API (retrieval-and-cite only — see `docs/methodology.md` Section 16)
-- **Testing**: pytest (backend, 415 tests), Vitest (frontend, 66 tests)
+- **Testing**: pytest (backend, 415 tests), Vitest (frontend, 71 tests)
 - **Deployment**: Docker Compose (see `docs/DEPLOYMENT.md`)
 
 ## Project structure
@@ -110,7 +110,7 @@ Frontend now running at http://localhost:5173 (Vite default).
 Run frontend tests:
 
 ```bash
-npm test   # 66 tests (Vitest + React Testing Library)
+npm test   # 71 tests (Vitest + React Testing Library)
 ```
 
 ## Data sources: LIVE vs DEVELOPMENT SAMPLE
@@ -254,6 +254,17 @@ the full provider-abstraction pattern.
   RELIANCE?") into a real `WhatIfService` simulation, or explicitly says
   it couldn't parse one rather than guessing. See
   `docs/adr/0015-assistant-context-expansion.md`.
+- **UI/UX and Performance Audit** (Phase 33): an evidence-based pass,
+  not a cosmetic rewrite -- most of the spec's items (loading/empty/
+  error states, chart responsiveness, dark theme consistency) were
+  audited and found already consistent, documented as such rather than
+  changed for its own sake. Two real gaps were found and fixed: the
+  watchlist/stock-search inputs and the mobile navigation drawer now
+  meet basic accessibility expectations (explicit `aria-label`s, a
+  keyboard-dismissible, scroll-locking drawer dialog), and the charts
+  and ticker cards on `MarketPage`/`StockDetailPage` are now memoized so
+  the live WebSocket feed's ~1/sec updates no longer re-render
+  components whose own data didn't change. See `docs/limitations.md`.
 
 ## Known limitations (honestly, and extended every phase)
 

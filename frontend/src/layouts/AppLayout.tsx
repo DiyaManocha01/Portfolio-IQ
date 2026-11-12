@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../hooks/useAuth';
@@ -22,6 +22,23 @@ export function AppLayout() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Keyboard users have no way to dismiss the drawer otherwise (the
+  // backdrop is only mouse/touch-clickable), and a body scroll lock
+  // keeps the page behind it from scrolling while it's open.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMobileOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileOpen]);
+
   function handleLogout() {
     logout();
     navigate('/login');
@@ -36,9 +53,18 @@ export function AppLayout() {
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)} />
+        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)} aria-hidden="true" />
           <aside className="relative z-50 flex h-full w-64 flex-col border-r border-base-border bg-base-surface">
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close navigation"
+              className="absolute right-3 top-3 rounded-md p-1.5 text-slate-400 hover:bg-base-surface2 hover:text-slate-200"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
             <SidebarContent onNavigate={() => setMobileOpen(false)} onLogout={handleLogout} userLabel={user?.full_name ?? user?.email} />
           </aside>
         </div>

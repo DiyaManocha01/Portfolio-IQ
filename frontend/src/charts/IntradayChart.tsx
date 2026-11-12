@@ -1,8 +1,11 @@
+import { memo } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { CandleOut } from '../types/api';
 import { formatCurrency, formatDateTime } from '../utils/format';
 
-export function IntradayChart({ candles }: { candles: CandleOut[] }) {
+// Memoized -- see PriceHistoryChart.tsx's comment; same StockDetailPage,
+// same every-~1s live-feed re-render this chart's own data doesn't need.
+export const IntradayChart = memo(function IntradayChart({ candles }: { candles: CandleOut[] }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={candles} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
@@ -30,4 +33,4 @@ export function IntradayChart({ candles }: { candles: CandleOut[] }) {
       </LineChart>
     </ResponsiveContainer>
   );
-}
+});

@@ -104,6 +104,34 @@ describe('MarketPage', () => {
     expect(screen.getAllByText('TCS').length).toBeGreaterThan(0);
   });
 
+  it('has an accessible label on the watchlist search input', async () => {
+    mockedGetMarketStatus.mockResolvedValue({
+      market_status: 'OPEN',
+      feed_status: 'CONNECTED',
+      server_time: '2026-11-11T10:00:00Z',
+      ticks: [
+        {
+          symbol: 'RELIANCE',
+          exchange: 'NSE',
+          price: 2960.5,
+          previous_close: 2950,
+          change: 10.5,
+          change_percent: 0.36,
+          open: 2951,
+          high: 2965,
+          low: 2948,
+          close: 2950,
+          volume: 1200000,
+          last_traded_time: '2026-11-11T10:00:00Z',
+          status: 'LIVE',
+          source: 'ANGELONE',
+        },
+      ],
+    });
+    renderPage();
+    expect(await screen.findByRole('textbox', { name: 'Search watchlist symbol' })).toBeInTheDocument();
+  });
+
   it('renders the NIFTY 50 market regime card once it loads', async () => {
     mockedGetMarketStatus.mockResolvedValue({
       market_status: 'CLOSED',

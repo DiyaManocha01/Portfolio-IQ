@@ -1,8 +1,11 @@
+import { memo } from 'react';
 import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { AnalysisPoint } from '../types/api';
 import { formatDate, formatNumber } from '../utils/format';
 
-export function MacdChart({ points }: { points: AnalysisPoint[] }) {
+// Memoized -- see PriceHistoryChart.tsx's comment; same StockDetailPage,
+// same every-~1s live-feed re-render this chart's own data doesn't need.
+export const MacdChart = memo(function MacdChart({ points }: { points: AnalysisPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={240}>
       <ComposedChart data={points} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
@@ -21,4 +24,4 @@ export function MacdChart({ points }: { points: AnalysisPoint[] }) {
       </ComposedChart>
     </ResponsiveContainer>
   );
-}
+});
