@@ -37,6 +37,10 @@ backend/app/data/angelone_instruments.json
 # the small hand-written test fixture under app/tests/fixtures/ IS committed)
 backend/app/data/fundamentals_cache/
 
+# DB backups (produced locally via scripts/backup_db.py, Phase 34) --
+# contain real user data in any real deployment, never committed
+backend/backups/
+
 # Node / frontend
 frontend/node_modules/
 frontend/dist/

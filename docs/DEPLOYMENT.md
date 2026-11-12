@@ -142,9 +142,80 @@ verification, extended to a related but distinct constraint:
 - Not a production hardening guide: no TLS termination/reverse proxy,
   no secrets manager (env vars in a `.env` file), no resource limits,
   no multi-replica/orchestration story beyond what Compose itself gives
-  you, no log aggregation.
-- The rate limiting added in Phase 21 (`slowapi`, in-memory storage) does
-  not share state across multiple backend replicas -- fine for this
-  single-`backend`-container Compose setup, not for a scaled deployment.
-- Postgres' own backup/restore strategy is out of scope here --
-  `pgdata` is a plain Docker volume, not a managed/backed-up database.
+  you, no log aggregation pipeline (Phase 34 gives you structured JSON
+  log LINES -- see below -- not a place those lines are shipped to).
+- The rate limiting added in Phase 21, expanded in Phase 34 (`slowapi`,
+  in-memory storage) does not share state across multiple backend
+  replicas -- fine for this single-`backend`-container Compose setup,
+  not for a scaled deployment.
+
+## Production readiness additions (Phase 34)
+
+### Database backups
+
+`pgdata` is still a plain Docker volume with no automatic backup of its
+own -- Postgres' own backup/restore strategy stays out of Compose's
+scope. What Phase 34 adds is `backend/scripts/backup_db.py`: a
+`pg_dump`-based backup you run yourself, on whatever schedule you choose
+(a host cron job, a CI nightly job, a Kubernetes CronJob if you deploy
+there) -- the application never calls it itself.
+
+```bash
+cd backend && source venv/bin/activate
+python scripts/backup_db.py                       # backs up DATABASE_URL from .env, keeps 7
+python scripts/backup_db.py --out-dir /var/backups/portfolioiq --keep 14
+
+# Restore (always a deliberate, reviewed action -- never automatic):
+pg_restore --clean --if-exists -d portfolioiq /path/to/backup.dump
+```
+
+Against a Compose deployment specifically, run `pg_dump` against the
+exposed `localhost:5432` port (already published by the `db` service)
+rather than from inside a container, or add a short-lived `docker compose
+run` invocation if you'd rather not expose Postgres's port to the host at
+all.
+
+### Structured logging and error tracking
+
+The backend now logs one JSON object per line (`LOG_LEVEL` in `.env`,
+default `INFO`) instead of plain text -- pipe `docker compose logs
+backend` into any JSON-aware log tool (`jq`, a log-aggregation agent)
+rather than parsing free text. Every request's logs carry a `request_id`
+that's also returned as the `X-Request-ID` response header, so a
+specific user-reported error can be traced to its exact log lines.
+
+Error tracking is opt-in via `SENTRY_DSN` (empty by default, a true
+no-op): set it in `backend/.env` to your own Sentry project's DSN to get
+real exception alerting. Neither this repo nor this sandbox runs or
+pays for a Sentry account on your behalf -- you create your own project
+at https://sentry.io if you want this.
+
+### Backend container healthcheck
+
+`backend` now has a Docker healthcheck (`docker-compose.yml`) that polls
+Phase 34's `GET /health` -- real DB/migration/model status, not just "the
+process accepted a TCP connection." `frontend` now depends on `backend`
+being reported *healthy*, not merely started, before Compose considers
+it safe to come up -- tightening the previous plain `depends_on:
+[backend]` (process started) to `condition: service_healthy` (process
+and its real dependencies are actually working). Verified with `docker
+compose config` (clean resolution, no syntax errors) in this sandbox;
+not run through a live `docker compose up` for the same network-access
+reasons the "What has (and has not) been verified" section above
+already describes.
+
+## Before a public demo: verify data licensing first
+
+**Do not expose this application publicly (a public URL, a demo for
+people outside this project) until you have personally verified the
+market-data redistribution terms.** This project's own
+`docs/open-source-inventory.md` already notes that Yahoo Finance data
+(via `yfinance`) is used here for this project's own development/testing
+only, not redistributed -- a public demo that displays live or cached
+Yahoo Finance-sourced prices to third parties is a materially different
+use than a local dev/demo instance only you look at, and Yahoo's terms
+of use (not this project's choice to make) govern whether that's
+permitted. The same applies to any Angel One-sourced real-time data if
+`ENABLE_REALTIME_FEED` is ever turned on for a public instance. This is
+a standing caution, not a one-time checkbox: re-verify if you change
+data providers or redistribution scope later.

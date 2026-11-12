@@ -819,9 +819,11 @@ build an assistant chat page.
   `docker compose up --build` once on a normal machine** before relying
   on this for a demo.
 - **No production hardening** (TLS/reverse proxy, secrets manager,
-  resource limits, log aggregation, multi-replica orchestration) — this
-  is a local/demo Compose setup, stated plainly as such in
-  `docs/DEPLOYMENT.md`.
+  resource limits, multi-replica orchestration) — this is a local/demo
+  Compose setup, stated plainly as such in `docs/DEPLOYMENT.md`. Phase 34
+  added structured logging and opt-in error tracking (see below), which
+  narrows but does not close this gap — there is still no log
+  aggregation pipeline, just structured lines on stdout.
 - **The Phase 21 rate limiter's in-memory storage does not span multiple
   backend replicas** — a non-issue for this single-`backend`-container
   Compose setup, a real gap for any scaled deployment.
@@ -836,3 +838,70 @@ build an assistant chat page.
 - **See `docs/security-review.md`** for the full Phase 21 dependency
   audit, what was upgraded/replaced vs. deferred and why, and what the
   new auth/assistant rate limiting does and does not cover.
+
+## Production Readiness (Phase 34)
+
+- **The `starlette` CVEs deferred in Phase 21 are still deferred.**
+  Re-audited in Phase 34 with a per-CVE reachability check against this
+  app's actual route code (none of the 7 vulnerable features --
+  multipart uploads, `FileResponse`/`StaticFiles`, `HTTPEndpoint`
+  classes, urlencoded forms, `request.url`-trusting redirects -- are
+  used anywhere in `app/`), and the fix still requires a `starlette
+  >=1.3.1`, which only the LATEST `fastapi` release permits -- a
+  ~47-minor-version jump from the pinned `0.115.6`. Documented and
+  deferred again, this time with the reachability analysis attached; see
+  `docs/security-review.md` Section 5.1. A real-but-currently-
+  unreachable finding, not a hidden one.
+- **Frontend dev/test tooling (`vite`/`vitest`/`esbuild`/`tinypool`/
+  `vite-node`/`@vitest/mocker`) has 6 known findings, one critical**
+  (a prototype-pollution-to-RCE advisory in `vitest`'s worker pool).
+  None of these packages ship in the production bundle -- the exposure
+  is to a developer's own machine running `npm run dev`/`vitest`, not to
+  an end user of the deployed app. Fixing requires `vite@5→8` and
+  `vitest@2→5`, both breaking changes to the exact test infrastructure
+  Phase 21 built this project's coverage on; deferred for the same
+  reason as the backend finding above. See `docs/security-review.md`
+  Section 5.2.
+- **The default rate limit (120/minute per client IP, Phase 34) is a
+  single flat number across every route with no limit of its own** --
+  it doesn't distinguish a cheap `GET /stocks/{symbol}` from an expensive
+  `POST /portfolio/optimize` (covariance optimization) or `POST
+  /portfolio/what-if` (a multi-position simulation). A scripted client
+  could still spend 120 requests/minute entirely on the expensive
+  endpoints. Tightening per-endpoint limits by actual computational cost
+  was judged out of scope for this phase (it would need real load
+  testing to set sensible per-route numbers, not guessed ones) -- a
+  candidate for a future, measurement-backed pass.
+- **Structured logging and the correlation-ID middleware are new and
+  Phase-34-only** -- no log LINES from before this phase were migrated
+  to the new JSON format (there was nothing to migrate; the old format
+  was plain text with no structure to preserve). Logs are written to
+  stdout only; nothing ships them anywhere (no ELK/CloudWatch/Loki
+  integration) -- `docker compose logs` or your platform's own log
+  capture is still how you'd actually read them in a real deployment.
+- **Error tracking (Sentry) has never actually been exercised against a
+  real Sentry project** -- `SENTRY_DSN` is empty by default and was
+  never set in this sandbox (no such account exists here), so
+  `sentry_sdk.init()` has only been verified to be correctly SKIPPED
+  (no-op) when unset, not verified to correctly report a real exception
+  when configured. The integration follows the SDK's own standard
+  `init()` call with no custom logic on top, so this is a low-risk gap,
+  but it is still an unexercised code path, stated plainly.
+- **The DB backup script (`scripts/backup_db.py`) was verified to work**
+  (a real `pg_dump` ran against this sandbox's dev database, the output
+  was confirmed restorable with `pg_restore --list`, and the retention/
+  rotation logic was verified to delete only its own prior backups) --
+  but it has never been run against a real production-sized database
+  (this sandbox's dev DB is small), so its runtime/storage footprint at
+  real scale is unverified, and nothing in this project actually
+  schedules it (no cron job, no CI nightly run is committed) -- the
+  project owner must wire up a real schedule themselves.
+- **`GET /health`'s migration-version check reads `alembic.ini` from a
+  path computed relative to this file's own location** (`app/services/
+  health_service.py`, three directories up) -- correct for both the
+  normal `cd backend && uvicorn ...` setup and the Docker image's
+  `WORKDIR /app` layout (verified both resolve to the same relative
+  structure), but a different deployment layout that moves `alembic.ini`
+  elsewhere would make this one check report `up_to_date: None` (not a
+  crash, but an unverified claim) while the rest of `/health` still
+  works correctly.

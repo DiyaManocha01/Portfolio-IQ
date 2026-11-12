@@ -35,12 +35,14 @@ backend/
   app/
     api/
       deps.py              # auth deps (get_current_user, get_current_portfolio)
-      routes/               # auth, portfolio, stocks, discover, portfolio_fit, ledger, assistant, market
+      routes/               # auth, portfolio, stocks, discover, portfolio_fit, ledger, assistant, market, health
     models/                 # SQLAlchemy ORM models (14 tables, see below)
     schemas/                # Pydantic request/response models
     services/
       security.py           # password hashing + JWT (PyJWT, Phase 21)
-      rate_limit.py          # shared slowapi Limiter (Phase 21)
+      rate_limit.py          # shared slowapi Limiter (Phase 21; default_limits applied to every route, Phase 34)
+      logging_config.py       # structured JSON logging + per-request correlation ID (Phase 34)
+      health_service.py       # GET /health's real dependency checks: DB, migrations, ML model, feed (Phase 34)
       analytics.py           # stock analytics (SMA/EMA/RSI/MACD/volatility/beta)
       portfolio_calc.py      # holding P&L + portfolio aggregation + performance series
       news_service.py        # news generation + sentiment orchestration
@@ -100,7 +102,7 @@ backend/
     data/
       seed.py                 # dev seed script: stocks, market data, news, demo user, trains ML
       models/                  # trained model artifacts (joblib) + metadata.json, gitignored
-    tests/                    # pytest suite, 415 tests
+    tests/                    # pytest suite, 429 tests
   Dockerfile                  # multi-stage build (Phase 22)
   docker-entrypoint.sh         # migrate -> seed/train (once) -> uvicorn (Phase 22)
 ```

@@ -56,6 +56,16 @@ services:
       - backend_data:/app/app/data
     ports:
       - "8000:8000"
+    healthcheck:
+      # Phase 34's GET /health -- real DB/migration/model checks, not
+      # just "the process is up." Uses `python -c` rather than `curl`/
+      # `wget` so no extra package needs installing into the slim image
+      # (Python itself is already there to run the app).
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   frontend:
     build:
@@ -67,7 +77,8 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "5173:80"
 

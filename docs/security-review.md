@@ -1,4 +1,4 @@
-# Security Review (Phase 21)
+# Security Review (Phase 21, re-audited Phase 34)
 
 Scope: a practical security pass over the existing application and its
 dependencies, done as the second phase of Batch 10 alongside the Phase 20
@@ -167,3 +167,143 @@ log in this environment's current (placeholder) configuration.
   injection surface beyond what Phase 19's guardrail already documents
   in `docs/limitations.md` ("AI Portfolio Assistant" section) — that
   caveat stands as written, not re-litigated here.
+
+## 5. Phase 34 re-audit (Production Readiness)
+
+Re-ran everything in Section 1 from scratch (13 phases and ~20 new
+dependencies have landed since Phase 21), plus a fresh pass on
+authentication coverage now that the route count has roughly doubled
+(12 route files vs. Phase 21's handful).
+
+### 5.1 Backend (`pip-audit`), re-run
+
+**14 findings, same single package as Phase 21: `starlette` 0.41.3**
+(transitive, via `fastapi==0.115.6`). Nothing else in `requirements.txt`
+(now 32 direct entries, including Phase 19's `anthropic`, Phase 24's
+`requests`/`websockets`/`pyotp`, and this phase's `sentry-sdk`) has any
+known finding — the PyJWT/python-multipart/python-dotenv/pytest/pyarrow
+fixes from Phase 21 are all still in place and clean.
+
+Phase 21 deferred this with a version-gap argument (`fastapi` lagging
+the fix). This re-audit goes further and checks whether any of the 7
+underlying CVEs are actually REACHABLE through this app's own route
+code, independent of the version-gap question:
+
+| CVE | What it needs | Used anywhere in `app/`? |
+|---|---|---|
+| PYSEC-2026-1941 (multipart large-file thread blocking) | `UploadFile`/multipart form parsing | No — `grep` for `UploadFile`, `Form(` across `app/` (excluding tests): no matches |
+| PYSEC-2026-1942 (Range-header quadratic DoS) | `FileResponse` / `StaticFiles` | No — not used; the frontend is served separately by nginx (Phase 22), not FastAPI |
+| PYSEC-2026-2281 (StaticFiles UNC path, Windows only) | `StaticFiles` + a Windows host | No — `StaticFiles` unused, and the Docker deployment target is Linux |
+| PYSEC-2026-2280 (`HTTPEndpoint` verb-lookup) | Class-based `HTTPEndpoint` routes | No — every route in this app is a plain `@router.get/post/...` function |
+| PYSEC-2026-249 (urlencoded-form `max_fields` bypass) | `application/x-www-form-urlencoded` bodies | No — every route body is a JSON Pydantic model |
+| PYSEC-2026-161 / PYSEC-2026-248 (Host-header `request.url` reconstruction) | Code that trusts/redirects on `request.url` | No — the only `request.url` use anywhere in `app/` is `RequestContextMiddleware`'s own request-logging (Phase 34, this re-audit), which only reads `.path` for a log line, never redirects or makes a security decision from it |
+
+**Decision (confirmed with the project owner before writing this up,
+given the dependency bump needed to actually close it is large): document
+and defer, do not bump `fastapi`/`starlette` in this phase.** A real fix
+needs `starlette>=1.3.1`; checking every `fastapi` release's own pinned
+range (`0.115.14` allows `<0.47.0`, `0.118.0`→`<0.49.0`, `0.128.0`→`<0.51.0`
+— none reach `1.3.1`) shows only the LATEST release, `fastapi==0.162.5`
+(`starlette>=0.46.0`, no upper bound), permits a fully patched starlette.
+That's a ~47-minor-version jump across the entire backend — real
+regression risk (Pydantic validation edge cases, dependency-injection
+behavior, response serialization) across every one of this app's 60+
+routes, for a set of CVEs this re-audit found have no reachable path in
+this codebase's actual usage. Tracked here and in `docs/limitations.md`
+as a candidate for its own dedicated, ADR-backed upgrade phase, not
+silently left unmentioned.
+
+### 5.2 Frontend (`npm audit`), re-run
+
+**7 findings (3 moderate, 2 high, 2 critical)** before this re-audit —
+`follow-redirects` (high, `axios`'s transitive dependency, the same
+finding Phase 21 already fixed once) had reappeared, alongside
+`esbuild`/`vite`/`vite-node`/`tinypool`/`@vitest/mocker`/`vitest`
+(all dev/test tooling, not shipped in the production bundle).
+
+- `npm audit fix` (non-breaking): re-resolved `follow-redirects` again —
+  a `package-lock.json`-only change (no `package.json` edit), re-verified
+  with the full Vitest suite (71/71) and `npm run build` (clean). Why it
+  reappeared: most likely a lockfile regenerated during this long
+  session's repeated `npm install`s resolved `axios`'s transitive range
+  to the vulnerable patch version again; nothing in this project's own
+  `package.json` pins it directly, so this can recur and should be
+  re-checked periodically, not treated as permanently fixed by one
+  historical commit.
+- **Remaining 6 findings are all dev/test tooling only**
+  (`vite`/`vitest`/`esbuild`/`vite-node`/`tinypool`/`@vitest/mocker`),
+  including one critical (`tinypool`, a prototype-pollution-to-RCE
+  advisory in `vitest`'s worker pool). None of these packages are in the
+  production bundle (`vite build`'s output references none of them) —
+  the exposure is to a developer's own machine while running `npm run
+  dev`/`vitest`, not to an end user of the deployed app. Fixing requires
+  `vite@5.4.21 → 8.3.8` and `vitest@2.1.9 → 5.1.0`, both semver-major
+  jumps to the exact test infrastructure Phase 21 built this project's
+  test coverage on. Same reasoning as the backend `starlette` deferral:
+  documented, deferred, tracked in `docs/limitations.md`, not silently
+  dropped.
+
+### 5.3 Authentication coverage, re-verified across all 12 route files
+
+Spot-checked every route file added since Phase 21 (`alerts.py`,
+`discover.py`, `health.py`, `ledger.py`, `market.py`, `paper_trading.py`,
+`portfolio_fit.py`, `screener.py`, `stocks.py`) for whether each route
+requires auth via `Depends(get_current_user)` / `Depends
+(get_current_portfolio)` (`app/api/deps.py`). Result: consistent with
+the intended design, no gap found --
+
+- **Require auth** (touch a specific user's own data): `portfolio.py`,
+  `alerts.py`, `paper_trading.py`, `portfolio_fit.py`, `assistant.py`,
+  `discover.py`.
+- **Deliberately public** (general market/stock data, not user-specific):
+  `stocks.py`, `market.py`'s REST routes, `screener.py`, `ledger.py`
+  (Phase 18's own "verified public track record" design), and this
+  phase's `health.py` (a liveness/readiness probe must be reachable
+  without credentials).
+- `GET /ws/market` (Phase 24) carries its JWT as a query parameter
+  (`?token=...`), not an `Authorization` header, because a browser's
+  native WebSocket API cannot send custom headers during the handshake.
+  This is an accepted, documented tradeoff (a token in a URL can leak via
+  proxy/server logs or the `Referer` header in a way a header cannot) —
+  unchanged since Phase 24, re-confirmed still the only viable approach
+  for browser-native WebSocket auth without introducing a separate
+  short-lived-ticket exchange step this project doesn't otherwise need.
+
+### 5.4 New in this phase
+
+- **Rate limiting now covers every route, not just auth/assistant.**
+  `app/services/rate_limit.py`'s `Limiter` carries `default_limits=
+  ["120/minute"]`, applied by the existing `SlowAPIMiddleware` to any
+  route without its own `@limiter.limit(...)` (`auth`/`assistant` keep
+  their stricter, Phase-21-set limits, which remain the binding
+  constraint on those routes). `GET /health` is explicitly exempted
+  (`@limiter.exempt`) so a load balancer's liveness probe is never itself
+  rate-limited. Verified with an isolated throwaway `Limiter` instance
+  (`app/tests/test_rate_limit.py`) rather than hammering the real shared
+  limiter state 120+ times inside the real test suite.
+- **Structured JSON logging + a per-request correlation ID**
+  (`app/services/logging_config.py`, `RequestContextMiddleware` in
+  `app/main.py`) — every log line is now one JSON object (level, logger,
+  message, `request_id`, plus any `extra=` fields), and every request's
+  `request_id` is echoed back as an `X-Request-ID` response header, so a
+  user-reported error can be traced to its exact log lines. Replaces the
+  previous bare `logging.basicConfig(level=logging.WARNING)`.
+- **Error tracking via Sentry, opt-in.** `sentry_sdk.init()` only runs if
+  `SENTRY_DSN` is set in a local `.env` — a true no-op in this sandbox
+  and for anyone who hasn't configured their own Sentry project, the same
+  pattern already established for `ANTHROPIC_API_KEY`/`ANGELONE_*`.
+- **`GET /health` now reports real dependency status** (DB connectivity,
+  Alembic migration head vs. applied, ML model loaded, realtime feed
+  status) instead of an unconditional `{"status": "ok"}` — see
+  `app/services/health_service.py`.
+- **A `pg_dump`-based backup script**, `scripts/backup_db.py` — unlike
+  the Phase 4/7/24 fetch scripts, this one genuinely runs in this sandbox
+  (only needs the local Postgres instance, no blocked external host) and
+  was actually exercised here: a real dump was produced and verified
+  restorable with `pg_restore --list`, and the retention/rotation logic
+  was verified to delete only its own prior backups past `--keep`. Still
+  meant to be run by the project owner on a real schedule (cron/CI), not
+  invoked by the application itself.
+- **`SECRET_KEY` startup warning**: unchanged logic from Phase 21,
+  re-verified it still fires correctly now that it goes through the new
+  JSON log formatter instead of the plain-text one.

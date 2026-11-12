@@ -33,7 +33,7 @@ model-based estimates and are not guaranteed financial advice.
 - **NLP**: Hugging Face Transformers / FinBERT (optional, see below), with a
   lexicon-based sentiment provider as the offline default
 - **AI assistant**: Anthropic Claude API (retrieval-and-cite only — see `docs/methodology.md` Section 16)
-- **Testing**: pytest (backend, 415 tests), Vitest (frontend, 71 tests)
+- **Testing**: pytest (backend, 429 tests), Vitest (frontend, 71 tests)
 - **Deployment**: Docker Compose (see `docs/DEPLOYMENT.md`)
 
 ## Project structure
@@ -83,7 +83,7 @@ Backend now running at http://localhost:8000 (interactive docs at `/docs`).
 Run tests (with the backend's venv active, DB seeded, and the server importable):
 
 ```bash
-python -m pytest app/tests/ -v   # 415 tests
+python -m pytest app/tests/ -v   # 429 tests
 ```
 
 ### Demo login
@@ -265,6 +265,18 @@ the full provider-abstraction pattern.
   and ticker cards on `MarketPage`/`StockDetailPage` are now memoized so
   the live WebSocket feed's ~1/sec updates no longer re-render
   components whose own data didn't change. See `docs/limitations.md`.
+- **Production Readiness** (Phase 34): opt-in Sentry error tracking
+  (`sentry-sdk`, a true no-op without your own `SENTRY_DSN`), structured
+  JSON logging with a per-request correlation ID (`X-Request-ID`), a
+  real `GET /health` (DB connectivity, Alembic migration status, ML
+  model loaded, realtime feed status -- not a trivial `{"status": "ok"}`),
+  rate limiting expanded to every route (previously only auth/assistant),
+  and a `pg_dump`-based backup script actually run and verified
+  restorable in this sandbox. A re-run dependency audit found the same
+  `starlette` CVEs Phase 21 deferred are still unreachable in this app's
+  actual code (new per-CVE analysis) and still deferred for the same
+  reason (the fix needs a ~47-minor-version `fastapi` jump); see
+  `docs/security-review.md`.
 
 ## Known limitations (honestly, and extended every phase)
 

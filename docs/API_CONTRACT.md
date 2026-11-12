@@ -810,8 +810,28 @@ portfolio's performance series).
 }
 ```
 
+## Health / Infrastructure (Phase 34, PUBLIC -- no auth required)
+
+### GET /health
+Deliberately public and exempt from rate limiting (`@limiter.exempt`) --
+a liveness/readiness probe must always be reachable. Reveals only this
+process's own dependency status, no portfolio data.
+```json
+{
+  "status": "ok",
+  "database": { "connected": true },
+  "migrations": { "applied": "25b450765c4c", "head": "25b450765c4c", "up_to_date": true },
+  "ml_model": { "loaded": true, "model_version": "d6904cb9141d" },
+  "realtime_feed": { "enabled": false, "status": "DISABLED" }
+}
+```
+`status` is `"degraded"` (still HTTP 200, so load balancers don't flap)
+if the database isn't connected or migrations aren't up to date. Every
+response (not just this endpoint) also carries an `X-Request-ID` header
+for log correlation -- see `app/services/logging_config.py`.
+
 ## Error shape
-FastAPI default: `{ "detail": "message" }` with 401/404/400/503 status codes as appropriate. 503 specifically means the ML model hasn't been trained yet (won't happen against the seeded demo DB).
+FastAPI default: `{ "detail": "message" }` with 401/404/400/429/503 status codes as appropriate. 429 means the client (or the global default of 120/min, Phase 34) hit a rate limit. 503 specifically means the ML model hasn't been trained yet (won't happen against the seeded demo DB).
 
 ## Cross-cutting frontend requirements
 - Global disclaimer footer/banner: "PortfolioIQ is an educational and analytical decision-support system. Its predictions and portfolio analytics are model-based estimates and are not guaranteed financial advice."
