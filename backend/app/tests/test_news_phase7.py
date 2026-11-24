@@ -130,8 +130,19 @@ def _headline(symbol: str, headline: str, source: str, hours_ago: float, summary
     return CachedHeadline(symbol=symbol, headline=headline, source=source, url=None, published_at=published.isoformat(), summary=summary)
 
 
+def _reset_live_news(db_session, stock_id: int) -> None:
+    """db_session (conftest.py) is a real session against the persistent
+    dev DB with no transaction rollback between tests, so a test asserting
+    an exact `written`/stored count must not depend on whatever LIVE rows
+    a *previous* run of this same test already committed. Clears the
+    slate so these tests are idempotent across repeated runs."""
+    db_session.query(News).filter(News.stock_id == stock_id, News.data_source == DataSource.LIVE).delete()
+    db_session.commit()
+
+
 def test_ingest_live_news_skips_cross_source_near_duplicate(db_session, monkeypatch):
     stock = MarketDataService(db_session).get_or_create_stock("TCS")
+    _reset_live_news(db_session, stock.id)
     cached = [
         _headline("TCS", "TCS shares surge after strong quarterly earnings beat estimates", "Economic Times", hours_ago=2),
         _headline("TCS", "TCS shares jump after strong quarterly earnings beat estimates", "Moneycontrol", hours_ago=1.5),
@@ -147,6 +158,7 @@ def test_ingest_live_news_skips_cross_source_near_duplicate(db_session, monkeypa
 
 def test_ingest_live_news_keeps_genuinely_different_headlines(db_session, monkeypatch):
     stock = MarketDataService(db_session).get_or_create_stock("INFY")
+    _reset_live_news(db_session, stock.id)
     cached = [
         _headline("INFY", "Infosys wins large new contract, boosting investor confidence", "Economic Times", hours_ago=2),
         _headline("INFY", "Infosys downgraded by brokerage citing valuation and demand risks", "Moneycontrol", hours_ago=1),
@@ -159,6 +171,7 @@ def test_ingest_live_news_keeps_genuinely_different_headlines(db_session, monkey
 
 def test_ingest_live_news_does_not_reduplicate_against_already_stored_live_news(db_session, monkeypatch):
     stock = MarketDataService(db_session).get_or_create_stock("WIPRO")
+    _reset_live_news(db_session, stock.id)
     first_batch = [
         _headline("WIPRO", "Wipro shares surge after strong quarterly earnings beat estimates", "Economic Times", hours_ago=2),
     ]
