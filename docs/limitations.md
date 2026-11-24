@@ -30,6 +30,56 @@ UI, the methodology doc, or a future paper, it's listed here.
   (verified). See `docs/adr/0008-realtime-market-data-angelone.md` for
   exactly what that means was/wasn't verified.
 
+## Historical Data Pipeline (real-data upgrade, Phase C)
+
+- **Gap detection inherits the empty NSE holiday calendar.** `detect_gaps()`
+  (`app/services/market_data/candle_resample.py`) walks every weekday
+  minute within session hours between the first and last candle actually
+  on hand -- a real NSE holiday inside that range has no candles (nothing
+  trades) and is therefore wrongly counted as "missing," for the same
+  reason `session_calendar.py`'s `NSE_HOLIDAYS` ships empty (see above).
+- **Interval resampling can produce a partial first bar for 30m/1h.** NSE's
+  9:15 open isn't a multiple of 30 or 60 minutes from midnight (it is for
+  5m and 15m), so the day's first 30-minute or 1-hour bucket can start
+  before 9:15 and contain fewer than a full interval's worth of real
+  candles. This is standard OHLCV-resampling behavior, not a bug --
+  documented directly in `docs/API_CONTRACT.md`.
+- **`adjusted` on stock-history endpoints is a provider-level, not a
+  per-bar, flag.** `DevSampleProvider.adjusted = True` is vacuously true
+  (its synthetic series has no corporate actions at all, so there's
+  nothing to misalign) -- it does NOT mean any specific corporate action
+  was verified against a real split/dividend. Only `LiveYFinanceProvider`
+  (`auto_adjust=True`) reflects an actual adjustment process.
+- **No historical intraday backfill exists.** Real intraday candles
+  accumulate only from the live feed's own periodic snapshots going
+  forward (`snapshot_service.py`) -- there is no job that backfills
+  `intraday_candles` from a broker's own historical-candle REST API.
+  Deferred deliberately: Angel One does expose such an endpoint publicly,
+  but building against it unverified (same "not reachable from any
+  sandbox" constraint as every other Angel One host) was judged lower
+  priority than the resampling/gap-detection/adjusted-labeling work
+  actually shipped in this phase -- see
+  `docs/gap-analysis-realtime-upgrade.md`.
+
+## Real-Time Portfolio Recalculation (real-data upgrade, Phase D)
+
+- **`day_pnl` needs a previous close to mean anything.** It falls back to
+  0 (not an error) when no previous bar exists yet for a holding -- the
+  same convention `StockQuote.change`/`change_percent` already used in
+  `stocks.py`. A freshly-added holding with only one day of history will
+  show `day_pnl: 0` until a second day of data exists. Before this phase,
+  "today's P&L" was not computed anywhere in this codebase at all
+  (confirmed by grepping the whole backend during the Phase A audit) --
+  only total unrealized P&L (`pnl`/`return_pct`, vs. cost basis) existed.
+  `day_pnl` is deliberately a different comparison (vs. previous close),
+  and the two will not match at the portfolio level.
+- **Portfolio-level `day_pnl` sums each holding's own figure** rather than
+  comparing `portfolio_value` against a separately-tracked "yesterday's
+  total" -- this is intentional (it stays correct if a holding was
+  bought or sold intraday, when a single before/after total-value
+  comparison would double-count or miss the change), but means
+  `day_pnl` is not simply "today's portfolio_value minus yesterday's."
+
 ## Real-Time Market Data (Phase 24)
 
 - **Bid/ask price, bid/ask quantity, and VWAP are always `null` for Angel

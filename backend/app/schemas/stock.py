@@ -39,6 +39,7 @@ class OHLCVPoint(BaseModel):
 class StockHistory(BaseModel):
     symbol: str
     data_source: str
+    adjusted: bool
     points: list[OHLCVPoint]
 
 
@@ -58,6 +59,7 @@ class StockDetail(BaseModel):
     quote: StockQuote
     indicators: TechnicalIndicators
     history: list[OHLCVPoint]
+    adjusted: bool
 
 
 class PredictionOut(BaseModel):
@@ -148,6 +150,7 @@ class FundamentalsOut(BaseModel):
 class StockAnalysis(BaseModel):
     symbol: str
     data_source: str
+    adjusted: bool
     returns: ReturnsSummary
     volatility_annualized: float
     max_drawdown: float

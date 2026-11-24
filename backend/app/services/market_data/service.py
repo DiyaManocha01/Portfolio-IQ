@@ -136,6 +136,12 @@ class MarketDataService:
     def data_source_label(self) -> str:
         return self.provider.source.value
 
+    @property
+    def adjusted(self) -> bool:
+        """Whether this provider's OHLCV series is split/dividend-adjusted --
+        see MarketDataProvider.adjusted and docs/limitations.md."""
+        return self.provider.adjusted
+
     def get_benchmark_history(self, days: int = 365) -> list:
         """Returns raw OHLCVBar history for the NIFTY 50 benchmark (Phase 5, beta calc).
 

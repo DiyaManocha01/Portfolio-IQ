@@ -42,6 +42,8 @@ class HoldingOut(BaseModel):
     current_value: float
     pnl: float
     return_pct: float
+    day_pnl: float
+    day_pnl_pct: float
 
     class Config:
         from_attributes = True
@@ -53,6 +55,8 @@ class PortfolioSummary(BaseModel):
     invested_amount: float
     total_pnl: float
     return_pct: float
+    day_pnl: float
+    day_pnl_pct: float
     holdings_count: int
     portfolio_risk: str
     health_score: float

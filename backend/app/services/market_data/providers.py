@@ -145,6 +145,10 @@ class FundamentalSnapshot:
 
 class MarketDataProvider(ABC):
     source: DataSource
+    # Whether this provider's OHLCV series is split/dividend-adjusted.
+    # Exists so callers can label history responses honestly rather than
+    # leaving it an undocumented implicit fact -- see docs/limitations.md.
+    adjusted: bool
 
     @abstractmethod
     def get_history(self, symbol: str, days: int = 365) -> list[OHLCVBar]:
@@ -168,6 +172,12 @@ class DevSampleProvider(MarketDataProvider):
     """
 
     source = DataSource.DEV_SAMPLE
+    # Vacuously True: this synthetic series has no corporate actions (splits/
+    # dividends/bonuses) baked in at all, so there is nothing for it to be
+    # unadjusted FOR -- the raw series already equals what an adjusted
+    # series would look like. Never read this as "verified against a real
+    # corporate action," just "nothing here would need adjusting."
+    adjusted = True
 
     def _seed_for(self, symbol: str) -> int:
         return int(hashlib.sha256(symbol.encode()).hexdigest(), 16) % (2**31)
@@ -286,6 +296,10 @@ class LiveYFinanceProvider(MarketDataProvider):
     """
 
     source = DataSource.LIVE
+    # auto_adjust=True is passed explicitly below on every yfinance call --
+    # this provider's OHLC is always split/dividend-adjusted by yfinance
+    # itself. See docs/adr/0014-portfolio-transaction-ledger.md.
+    adjusted = True
 
     def get_history(self, symbol: str, days: int = 365) -> list[OHLCVBar]:
         from app.services.market_data import cache

@@ -72,6 +72,51 @@ def test_candles_returns_snapshotted_rows(client, auth_headers, db_session):
     assert len(body["candles"]) >= 1
     assert body["candles"][-1]["close"] == 101.0
     assert body["candles"][-1]["status"] == "LIVE"
+    assert body["interval"] == "1m"
+    assert "gap_count" in body and "sample_gaps" in body
+
+
+def test_candles_rejects_unknown_interval(client, auth_headers):
+    resp = client.get("/market/candles/WIPRO?interval=7m", headers=auth_headers)
+    assert resp.status_code == 400
+
+
+def test_candles_resamples_to_requested_interval(client, auth_headers, db_session):
+    market_data = MarketDataService(db_session)
+    stock = market_data.get_or_create_stock("ADANIPORTS")
+    # This test runs against the persistent dev DB (no per-test rollback --
+    # see conftest.py's db_session fixture), so clear any rows a prior run
+    # left behind before inserting -- otherwise a second run within the
+    # same 5-minute bucket collides with the (stock_id, timestamp) unique
+    # constraint.
+    db_session.query(IntradayCandle).filter(IntradayCandle.stock_id == stock.id).delete()
+    db_session.commit()
+    now = dt.datetime.now(tz=dt.timezone.utc)
+    base = now.replace(minute=(now.minute // 5) * 5, second=0, microsecond=0)
+    for i in range(5):
+        db_session.add(
+            IntradayCandle(
+                stock_id=stock.id,
+                timestamp=base + dt.timedelta(minutes=i),
+                open=100.0 + i,
+                high=101.0 + i,
+                low=99.0 + i,
+                close=100.5 + i,
+                volume=1000,
+                source="ANGELONE",
+                status=CandleStatus.LIVE,
+            )
+        )
+    db_session.commit()
+
+    resp = client.get("/market/candles/ADANIPORTS?interval=5m", headers=auth_headers)
+    body = resp.json()
+    assert body["interval"] == "5m"
+    assert len(body["candles"]) == 1
+    bar = body["candles"][0]
+    assert bar["open"] == 100.0
+    assert bar["close"] == 104.5
+    assert bar["volume"] == 5000
 
 
 def test_ws_market_rejects_missing_token(client):

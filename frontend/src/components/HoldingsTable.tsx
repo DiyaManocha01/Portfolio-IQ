@@ -20,6 +20,7 @@ export function HoldingsTable({
             <th className="py-2 pr-2 font-medium text-right">Qty</th>
             <th className="py-2 pr-2 font-medium text-right">Price</th>
             <th className="py-2 pr-2 font-medium text-right">Value</th>
+            <th className="py-2 pr-2 font-medium text-right">Today's P&amp;L</th>
             <th className="py-2 pr-2 font-medium text-right">P&amp;L</th>
             <th className="py-2 pr-2 font-medium text-right">Return</th>
             {onRemove && <th className="py-2 pl-1 font-medium text-right">Action</th>}
@@ -28,6 +29,7 @@ export function HoldingsTable({
         <tbody className="divide-y divide-base-border">
           {holdings.map((h) => {
             const positive = h.pnl >= 0;
+            const dayPositive = h.day_pnl >= 0;
             return (
               <tr key={h.id} className="hover:bg-base-surface2/60 transition">
                 <td className="py-2.5 pr-2">
@@ -37,6 +39,10 @@ export function HoldingsTable({
                 <td className="py-2.5 pr-2 text-right text-slate-300">{formatNumber(h.quantity)}</td>
                 <td className="py-2.5 pr-2 text-right text-slate-300 whitespace-nowrap">{formatCurrency(h.current_price)}</td>
                 <td className="py-2.5 pr-2 text-right font-medium text-slate-100 whitespace-nowrap">{formatCurrency(h.current_value)}</td>
+                <td className={clsx('py-2.5 pr-2 text-right font-medium whitespace-nowrap', dayPositive ? 'text-positive' : 'text-negative')}>
+                  {dayPositive ? '+' : ''}
+                  {formatCurrency(h.day_pnl)}
+                </td>
                 <td className={clsx('py-2.5 pr-2 text-right font-medium whitespace-nowrap', positive ? 'text-positive' : 'text-negative')}>
                   {positive ? '+' : ''}
                   {formatCurrency(h.pnl)}

@@ -46,7 +46,10 @@ class CandleOut(BaseModel):
 
 class CandlesOut(BaseModel):
     symbol: str
+    interval: str
     candles: list[CandleOut]
+    gap_count: int
+    sample_gaps: list[datetime]
 
 
 class RegimeFactorOut(BaseModel):

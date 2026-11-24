@@ -124,11 +124,17 @@ function SummaryRow({
   if (!summary) return null;
 
   const pnlPositive = summary.total_pnl >= 0;
+  const dayPnlPositive = summary.day_pnl >= 0;
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-7">
       <StatCard label="Portfolio Value" value={formatCurrency(summary.portfolio_value, { compact: true })} />
       <StatCard label="Invested Amount" value={formatCurrency(summary.invested_amount, { compact: true })} />
+      <StatCard
+        label="Today's P&L"
+        value={`${dayPnlPositive ? '+' : ''}${formatCurrency(summary.day_pnl, { compact: true })} (${formatSignedPct(summary.day_pnl_pct)})`}
+        tone={dayPnlPositive ? 'positive' : 'negative'}
+      />
       <StatCard
         label="Total P&L"
         value={`${pnlPositive ? '+' : ''}${formatCurrency(summary.total_pnl, { compact: true })}`}

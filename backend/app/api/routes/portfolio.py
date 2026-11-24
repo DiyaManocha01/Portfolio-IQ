@@ -241,6 +241,8 @@ def summary(
         invested_amount=totals["invested_amount"],
         total_pnl=totals["total_pnl"],
         return_pct=totals["return_pct"],
+        day_pnl=totals["day_pnl"],
+        day_pnl_pct=totals["day_pnl_pct"],
         holdings_count=len(holdings),
         portfolio_risk=_risk_label(risk["annualized_volatility"]),
         health_score=health["overall_health"],

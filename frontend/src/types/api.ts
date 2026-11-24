@@ -25,6 +25,8 @@ export interface Holding {
   current_value: number;
   pnl: number;
   return_pct: number;
+  day_pnl: number;
+  day_pnl_pct: number;
 }
 
 export type PortfolioRisk = 'Low' | 'Moderate' | 'High';
@@ -35,6 +37,8 @@ export interface PortfolioSummary {
   invested_amount: number;
   total_pnl: number;
   return_pct: number;
+  day_pnl: number;
+  day_pnl_pct: number;
   holdings_count: number;
   portfolio_risk: PortfolioRisk;
   health_score: number;

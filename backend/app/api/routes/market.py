@@ -13,7 +13,7 @@ import asyncio
 import datetime as dt
 import logging
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -23,6 +23,7 @@ from app.models.stock import Stock
 from app.schemas.market import CandleOut, CandlesOut, MarketStatusOut, RegimeFactorOut, RegimeOut, TickOut
 from app.services import market_regime_service
 from app.services.market_data import session_calendar
+from app.services.market_data.candle_resample import ALLOWED_INTERVALS, detect_gaps, resample_candles
 from app.services.market_data.live_cache import live_cache
 from app.services.market_data.service import MarketDataService
 from app.services.market_data.tick_normalizer import TickStatus
@@ -99,41 +100,61 @@ def get_market_status(db: Session = Depends(get_db)):
 
 
 @router.get("/market/candles/{symbol}", response_model=CandlesOut)
-def get_intraday_candles(symbol: str, limit: int = 390, db: Session = Depends(get_db)):
-    """Returns whatever real intraday candles exist for ``symbol``.
+def get_intraday_candles(symbol: str, limit: int = 390, interval: str = "1m", db: Session = Depends(get_db)):
+    """Returns whatever real intraday candles exist for ``symbol``, at the
+    requested interval.
 
     Deliberately returns an empty list rather than fabricating bars when
     nothing has been snapshotted yet (e.g. the real-time feed has never
     run) -- the frontend is expected to hide this timeframe rather than
-    show a chart with invented data. ``limit`` defaults to 390, one
-    trading day's worth of one-minute candles (9:15-15:30 IST).
+    show a chart with invented data. ``limit`` is the number of OUTPUT
+    bars at the requested interval, not raw 1-minute rows -- the raw
+    lookback window is widened accordingly so resampling has enough
+    source data. Gap detection (``gap_count``/``sample_gaps``) always runs
+    on the underlying 1-minute rows, independent of ``interval`` --
+    "missing 1-minute candles" is the meaningful question regardless of
+    what interval the caller is viewing.
     """
-    stock = db.query(Stock).filter(Stock.symbol == symbol.upper()).first()
+    symbol = symbol.upper()
+    if interval not in ALLOWED_INTERVALS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown interval '{interval}' -- must be one of {sorted(ALLOWED_INTERVALS)}",
+        )
+    stock = db.query(Stock).filter(Stock.symbol == symbol).first()
     if stock is None:
-        return CandlesOut(symbol=symbol.upper(), candles=[])
+        return CandlesOut(symbol=symbol, interval=interval, candles=[], gap_count=0, sample_gaps=[])
 
+    raw_limit = limit * ALLOWED_INTERVALS[interval]
     rows = (
         db.query(IntradayCandle)
         .filter(IntradayCandle.stock_id == stock.id)
         .order_by(IntradayCandle.timestamp.desc())
-        .limit(limit)
+        .limit(raw_limit)
         .all()
     )
     rows.reverse()
+
+    gap_count, sample_gaps = detect_gaps(rows)
+    resampled = resample_candles(rows, interval)[-limit:]
+
     return CandlesOut(
-        symbol=symbol.upper(),
+        symbol=symbol,
+        interval=interval,
         candles=[
             CandleOut(
-                timestamp=r.timestamp,
-                open=r.open,
-                high=r.high,
-                low=r.low,
-                close=r.close,
-                volume=r.volume,
-                status=r.status.value,
+                timestamp=bar["timestamp"],
+                open=bar["open"],
+                high=bar["high"],
+                low=bar["low"],
+                close=bar["close"],
+                volume=bar["volume"],
+                status=bar["status"].value,
             )
-            for r in rows
+            for bar in resampled
         ],
+        gap_count=gap_count,
+        sample_gaps=sample_gaps,
     )
 
 

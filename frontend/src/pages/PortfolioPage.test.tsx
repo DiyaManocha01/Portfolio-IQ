@@ -28,6 +28,8 @@ const sampleHolding = {
   current_value: 36000,
   pnl: 1000,
   return_pct: 2.86,
+  day_pnl: 150,
+  day_pnl_pct: 0.42,
 };
 
 beforeEach(() => {

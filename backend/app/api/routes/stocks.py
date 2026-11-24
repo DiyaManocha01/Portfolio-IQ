@@ -68,6 +68,7 @@ def get_stock_detail(symbol: str, db: Session = Depends(get_db)):
         quote=quote,
         indicators=TechnicalIndicators(**indicators),
         history=[OHLCVPoint(date=b.date, open=b.open, high=b.high, low=b.low, close=b.close, volume=b.volume) for b in history],
+        adjusted=market_data.adjusted,
     )
 
 
@@ -79,6 +80,7 @@ def get_stock_history(symbol: str, days: int = 200, db: Session = Depends(get_db
     return StockHistory(
         symbol=stock.symbol,
         data_source=market_data.data_source_label,
+        adjusted=market_data.adjusted,
         points=[OHLCVPoint(date=b.date, open=b.open, high=b.high, low=b.low, close=b.close, volume=b.volume) for b in history],
     )
 
@@ -140,6 +142,7 @@ def get_stock_analysis(symbol: str, days: int = 400, db: Session = Depends(get_d
     return StockAnalysis(
         symbol=stock.symbol,
         data_source=market_data.data_source_label,
+        adjusted=market_data.adjusted,
         returns=ReturnsSummary(
             daily_return=float(returns.iloc[-1]) if len(returns) and not pd.isna(returns.iloc[-1]) else None,
             cumulative_return_30d=_cum_return(30),

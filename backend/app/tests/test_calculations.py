@@ -29,6 +29,33 @@ def test_holding_metrics_loss():
     assert metrics["return_pct"] == -20.0
 
 
+def test_holding_metrics_day_pnl_uses_previous_close_not_cost_basis():
+    # Bought long ago at 3200; today's move is current price (3450) vs.
+    # YESTERDAY's close (3400) -- not vs. avg_buy_price, which is what
+    # `pnl` (total unrealized) already measures. These are two genuinely
+    # different numbers (confirmed absent from the codebase entirely
+    # before this phase -- see docs/gap-analysis-realtime-upgrade.md).
+    h = _fake_holding(quantity=10, avg_buy_price=3200.0)
+    metrics = portfolio_calc.holding_metrics(h, current_price=3450.0, previous_close=3400.0)
+    assert metrics["day_pnl"] == 500.0  # 10 * (3450 - 3400)
+    assert metrics["day_pnl_pct"] == round(500.0 / 34000.0 * 100, 2)
+    assert metrics["pnl"] == 2500.0  # unrelated total-P&L figure, unchanged
+
+
+def test_holding_metrics_day_pnl_defaults_to_zero_without_previous_close():
+    h = _fake_holding(quantity=10, avg_buy_price=3200.0)
+    metrics = portfolio_calc.holding_metrics(h, current_price=3450.0)  # no previous_close given
+    assert metrics["day_pnl"] == 0.0
+    assert metrics["day_pnl_pct"] == 0.0
+
+
+def test_holding_metrics_day_pnl_negative_move():
+    h = _fake_holding(quantity=4, avg_buy_price=100.0)
+    metrics = portfolio_calc.holding_metrics(h, current_price=95.0, previous_close=100.0)
+    assert metrics["day_pnl"] == -20.0
+    assert metrics["day_pnl_pct"] == -5.0
+
+
 def test_portfolio_totals_aggregates_holdings():
     holdings = [
         portfolio_calc.holding_metrics(_fake_holding(10, 100.0), 120.0),
@@ -41,10 +68,34 @@ def test_portfolio_totals_aggregates_holdings():
     assert round(totals["return_pct"], 2) == 5.0
 
 
+def test_portfolio_totals_sums_day_pnl_across_holdings():
+    holdings = [
+        portfolio_calc.holding_metrics(_fake_holding(10, 100.0), current_price=120.0, previous_close=115.0),
+        portfolio_calc.holding_metrics(_fake_holding(5, 200.0), current_price=180.0, previous_close=190.0),
+    ]
+    totals = portfolio_calc.portfolio_totals(holdings)
+    # Holding 1: 10 * (120 - 115) = +50; Holding 2: 5 * (180 - 190) = -50.
+    assert totals["day_pnl"] == 0.0
+    # prev_value = current(2100) - day_pnl(0) = 2100 -> pct is 0 too.
+    assert totals["day_pnl_pct"] == 0.0
+
+
+def test_portfolio_totals_day_pnl_matches_sum_of_holdings():
+    holdings = [
+        portfolio_calc.holding_metrics(_fake_holding(10, 100.0), current_price=120.0, previous_close=110.0),
+    ]
+    totals = portfolio_calc.portfolio_totals(holdings)
+    assert totals["day_pnl"] == 100.0  # 10 * (120 - 110)
+    prev_value = 1200.0 - 100.0  # current_value - day_pnl
+    assert totals["day_pnl_pct"] == round(100.0 / prev_value * 100, 2)
+
+
 def test_portfolio_totals_empty():
     totals = portfolio_calc.portfolio_totals([])
     assert totals["invested_amount"] == 0
     assert totals["return_pct"] == 0.0
+    assert totals["day_pnl"] == 0.0
+    assert totals["day_pnl_pct"] == 0.0
 
 
 def test_rsi_is_bounded_0_100():

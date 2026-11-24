@@ -89,7 +89,14 @@ def build_context(db: Session, portfolio: Portfolio, question: str) -> dict:
     context["portfolio_summary"] = {
         **totals,
         "holdings": [
-            {"symbol": h["symbol"], "sector": h["sector"], "quantity": h["quantity"], "current_value": h["current_value"]}
+            {
+                "symbol": h["symbol"],
+                "sector": h["sector"],
+                "quantity": h["quantity"],
+                "current_value": h["current_value"],
+                "day_pnl": h["day_pnl"],
+                "day_pnl_pct": h["day_pnl_pct"],
+            }
             for h in holdings
         ],
     }

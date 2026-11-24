@@ -57,9 +57,15 @@ unfiltered rather than returning nothing.
 [{
   "id": 1, "symbol": "TCS", "name": "Tata Consultancy Services", "sector": "Information Technology",
   "quantity": 10.0, "avg_buy_price": 3200.0, "current_price": 3489.71,
-  "invested_value": 32000.0, "current_value": 34897.1, "pnl": 2897.1, "return_pct": 9.05
+  "invested_value": 32000.0, "current_value": 34897.1, "pnl": 2897.1, "return_pct": 9.05,
+  "day_pnl": 885.0, "day_pnl_pct": 2.51
 }]
 ```
+`day_pnl`/`day_pnl_pct` (real-data-upgrade Phase D) are TODAY's move --
+`quantity * (current_price - previous_close)` -- a genuinely different
+figure from `pnl`/`return_pct` (total unrealized P&L vs. cost basis).
+Falls back to 0 when no previous close is available yet (same convention
+`StockQuote.change` already used), never an error.
 
 ### POST /portfolio/holdings
 Body: `{ "symbol": "TCS", "quantity": 10, "avg_buy_price": 3200 }` -> Holding (201). Adding an existing symbol merges into a weighted-average position. Phase 31: also logs a BUY transaction (see `/portfolio/transactions` below).
@@ -87,9 +93,15 @@ Newest first. Only includes transactions logged since Phase 31 shipped -- holdin
 ### GET /portfolio/summary
 ```json
 { "portfolio_id": 1, "portfolio_value": 252702.01, "invested_amount": 248200.0,
-  "total_pnl": 4502.01, "return_pct": 1.81, "holdings_count": 7,
+  "total_pnl": 4502.01, "return_pct": 1.81, "day_pnl": 577.14, "day_pnl_pct": 0.22,
+  "holdings_count": 7,
   "portfolio_risk": "Low" | "Moderate" | "High", "health_score": 81.2 }
 ```
+`day_pnl` (Phase D) is the sum of each holding's own day_pnl -- NOT
+`portfolio_value` minus a separately-tracked "yesterday's portfolio
+value," so it stays correct even if a holding was added or removed
+intraday. Distinct from `total_pnl` (cost-basis P&L) and from
+`/portfolio/performance/advanced`'s `realized_pnl` (sold positions only).
 
 ### GET /portfolio/performance?days=180
 ```json
@@ -312,18 +324,26 @@ HINDUNILVR, BHARTIARTL, SBIN, WIPRO, MARUTI, SUNPHARMA (unheld -- these populate
     "data_source": "DEV_SAMPLE" },
   "indicators": { "sma_20": .., "sma_50": .., "ema_20": .., "rsi_14": .., "volatility_annualized": ..,
     "momentum_10d": .., "daily_return": .., "cumulative_return_30d": .., "avg_volume_20d": .. },
-  "history": [{ "date": "2025-08-01", "open": .., "high": .., "low": .., "close": .., "volume": .. }, ...]
+  "history": [{ "date": "2025-08-01", "open": .., "high": .., "low": .., "close": .., "volume": .. }, ...],
+  "adjusted": true
 }
 ```
+`adjusted` (real-data-upgrade Phase C) is whether this OHLCV series is
+split/dividend-adjusted. `LiveYFinanceProvider` is always `true` (passes
+`auto_adjust=True` to yfinance); `DevSampleProvider` is also always `true`,
+vacuously -- its synthetic series has no corporate actions at all, so
+there's nothing for it to be unadjusted FOR. Never mix a series fetched
+with one `adjusted` value into a calculation alongside one fetched with
+the other.
 
-### GET /stocks/{symbol}/history?days=200 -> `{ symbol, data_source, points: [OHLCV...] }`
+### GET /stocks/{symbol}/history?days=200 -> `{ symbol, data_source, adjusted, points: [OHLCV...] }`
 
 ### GET /stocks/{symbol}/analysis?days=400 (Phase 5)
 Full time series (not just latest values) for charting -- returns,
 volatility, drawdown, SMA/EMA/RSI/MACD per day, plus beta vs. NIFTY 50.
 ```json
 {
-  "symbol": "TCS", "data_source": "DEV_SAMPLE",
+  "symbol": "TCS", "data_source": "DEV_SAMPLE", "adjusted": true,
   "returns": { "daily_return": 0.025, "cumulative_return_30d": -0.06, "cumulative_return_90d": 0.165, "cumulative_return_1y": 0.171 },
   "volatility_annualized": 0.286, "max_drawdown": -0.126,
   "beta_vs_nifty50": 0.85, "benchmark_data_source": "DEV_SAMPLE",
@@ -675,14 +695,29 @@ is populated. `data_received_at` is this server's own timestamp at
 normalization time -- distinct from `last_traded_time` (the exchange's own
 trade timestamp), useful for spotting feed lag.
 
-### GET /market/candles/{symbol}?limit=390
+### GET /market/candles/{symbol}?limit=390&interval=1m
 ```json
-{ "symbol": "RELIANCE", "candles": [ { "timestamp": "...", "open": 0, "high": 0, "low": 0, "close": 0, "volume": 0, "status": "LIVE" } ] }
+{
+  "symbol": "RELIANCE", "interval": "5m",
+  "candles": [ { "timestamp": "...", "open": 0, "high": 0, "low": 0, "close": 0, "volume": 0, "status": "LIVE" } ],
+  "gap_count": 3, "sample_gaps": ["2026-11-11T04:17:00Z", "2026-11-11T04:18:00Z", "2026-11-11T04:22:00Z"]
+}
 ```
 Returns real intraday candles from `intraday_candles` only -- an empty
 `candles` array means no snapshot exists yet (common until the real-time
 feed has actually run), not an error. Never fabricate a candle to fill
 this; the frontend hides the intraday chart entirely when this is empty.
+`interval` (real-data-upgrade Phase C) is one of `1m|5m|15m|30m|1h`
+(400 for anything else); `limit` counts OUTPUT bars at that interval, not
+raw 1-minute rows. Aggregation (`app/services/market_data/candle_resample.py`)
+is a pure resample of already-stored rows -- never a separate fetch. The
+first bar of a trading day can legitimately be partial for 30m/1h
+intervals, since 9:15 isn't a multiple of 30 or 60 minutes from midnight
+-- standard resampling behavior, not a bug. `gap_count`/`sample_gaps`
+(bounded to the first 20) report missing 1-minute candles between the
+first and last row actually on hand, regardless of `interval` --
+inherits the existing empty-NSE-holiday-calendar caveat (a holiday inside
+the scanned range is wrongly counted as gaps), see `docs/limitations.md`.
 
 ### WS /ws/market?token=&lt;JWT&gt;
 Pushes the same shape as `GET /market/status` roughly every second.
