@@ -12,6 +12,7 @@ const mockedGetMarketStatus = vi.mocked(marketService.getMarketStatus);
 const mockedGetRegime = vi.mocked(marketService.getRegime);
 const mockedGetMovers = vi.mocked(marketService.getMovers);
 const mockedGetIndices = vi.mocked(marketService.getIndices);
+const mockedGetCandles = vi.mocked(marketService.getCandles);
 const mockedUseMarketFeed = vi.mocked(useMarketFeed);
 
 function neverResolves<T>() {
@@ -56,6 +57,7 @@ beforeEach(() => {
     ],
     unsupported: ['SENSEX'],
   });
+  mockedGetCandles.mockResolvedValue({ symbol: 'RELIANCE', candles: [] });
 });
 
 describe('MarketPage', () => {
@@ -192,6 +194,50 @@ describe('MarketPage', () => {
     renderPage();
     expect(await screen.findByText('Trending Upward')).toBeInTheDocument();
     expect(screen.getByText(/Markets are trending upward\./)).toBeInTheDocument();
+  });
+
+  it('fetches recent candles per watchlist card for the sparkline (real-data upgrade Phase I)', async () => {
+    mockedGetMarketStatus.mockResolvedValue({
+      market_status: 'OPEN',
+      feed_status: 'CONNECTED',
+      server_time: '2026-11-11T10:00:00Z',
+      ticks: [
+        {
+          symbol: 'RELIANCE',
+          exchange: 'NSE',
+          price: 2960.5,
+          previous_close: 2950,
+          change: 10.5,
+          change_percent: 0.36,
+          open: 2951,
+          high: 2965,
+          low: 2948,
+          close: 2950,
+          volume: 1200000,
+          average_traded_price: null,
+          vwap: null,
+          bid: null,
+          ask: null,
+          bid_qty: null,
+          ask_qty: null,
+          last_traded_time: '2026-11-11T10:00:00Z',
+          data_received_at: '2026-11-11T10:00:00Z',
+          status: 'LIVE',
+          source: 'ANGELONE',
+        },
+      ],
+    });
+    mockedGetCandles.mockResolvedValue({
+      symbol: 'RELIANCE',
+      candles: [
+        { timestamp: '2026-11-11T09:30:00Z', open: 2940, high: 2945, low: 2938, close: 2942, volume: 1000, status: 'LIVE' },
+        { timestamp: '2026-11-11T09:31:00Z', open: 2942, high: 2950, low: 2940, close: 2948, volume: 1200, status: 'LIVE' },
+      ],
+    });
+
+    renderPage();
+    await screen.findAllByText('RELIANCE');
+    expect(mockedGetCandles).toHaveBeenCalledWith('RELIANCE', 30);
   });
 
   it('prefers live WebSocket data over the initial REST snapshot once it arrives', async () => {

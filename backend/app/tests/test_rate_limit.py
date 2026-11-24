@@ -14,7 +14,7 @@ Limiter's `default_limits` once `SlowAPIMiddleware` is installed.
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -22,7 +22,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 
-def _build_app(default_limits: list[str]) -> FastAPI:
+def _build_app(default_limits: list[str], decorated_limit: str | None = None) -> FastAPI:
     limiter = Limiter(key_func=get_remote_address, default_limits=default_limits)
     app = FastAPI()
     app.state.limiter = limiter
@@ -32,6 +32,13 @@ def _build_app(default_limits: list[str]) -> FastAPI:
     @app.get("/undecorated")
     def undecorated():
         return {"ok": True}
+
+    if decorated_limit is not None:
+
+        @app.get("/decorated")
+        @limiter.limit(decorated_limit)
+        def decorated(request: Request):
+            return {"ok": True}
 
     return app
 
@@ -47,3 +54,21 @@ def test_generous_default_limit_does_not_block_normal_use():
     client = TestClient(_build_app(["120/minute"]))
     for _ in range(10):
         assert client.get("/undecorated").status_code == 200
+
+
+# ---- Real-data upgrade Phase J: per-route limits on expensive endpoints ----
+
+
+def test_route_decorator_overrides_the_generous_default():
+    # Mirrors the real app: a generous 120/minute default, but a route
+    # decorated with its own tighter limit (as /portfolio/optimize,
+    # /portfolio/what-if, /portfolio/stress-test, /portfolio/risk-
+    # attribution, and /discover now are) is bound by ITS OWN limit, not
+    # the default.
+    client = TestClient(_build_app(["120/minute"], decorated_limit="2/minute"))
+    assert client.get("/decorated").status_code == 200
+    assert client.get("/decorated").status_code == 200
+    assert client.get("/decorated").status_code == 429
+    # The undecorated route on the same app is unaffected by the decorated
+    # route's own, separate rate-limit bucket.
+    assert client.get("/undecorated").status_code == 200

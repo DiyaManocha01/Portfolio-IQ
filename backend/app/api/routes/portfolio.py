@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_portfolio, get_current_user
@@ -57,6 +57,7 @@ from app.schemas.portfolio import (
 from app.portfolio import portfolio_performance_service
 from app.services import portfolio_calc
 from app.services.market_data.service import MarketDataService
+from app.services.rate_limit import limiter
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -381,7 +382,9 @@ def risk(
 
 
 @router.get("/risk-attribution", response_model=PortfolioRiskAttribution)
+@limiter.limit("30/minute")
 def risk_attribution(
+    request: Request,
     portfolio: Portfolio = Depends(get_current_portfolio),
     db: Session = Depends(get_db),
 ):
@@ -394,23 +397,25 @@ def risk_attribution(
 
 
 @router.post("/stress-test", response_model=StressTestResult)
+@limiter.limit("30/minute")
 def stress_test(
-    request: StressTestRequest,
+    request: Request,
+    payload: StressTestRequest,
     portfolio: Portfolio = Depends(get_current_portfolio),
     db: Session = Depends(get_db),
 ):
     service = StressTestService(db)
 
-    if request.scenario_preset is not None:
-        if request.scenario_preset not in SCENARIO_PRESETS:
+    if payload.scenario_preset is not None:
+        if payload.scenario_preset not in SCENARIO_PRESETS:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unknown scenario_preset: {request.scenario_preset!r}. Must be one of {list(SCENARIO_PRESETS)}.",
+                detail=f"Unknown scenario_preset: {payload.scenario_preset!r}. Must be one of {list(SCENARIO_PRESETS)}.",
             )
-        r = service.apply_preset(portfolio, request.scenario_preset)
-    elif request.scenario_text is not None:
+        r = service.apply_preset(portfolio, payload.scenario_preset)
+    elif payload.scenario_text is not None:
         try:
-            parsed = parse_scenario_text(request.scenario_text)
+            parsed = parse_scenario_text(payload.scenario_text)
         except ScenarioParseError as e:
             raise HTTPException(status_code=400, detail=str(e))
         r = service.apply_shock(
@@ -418,11 +423,11 @@ def stress_test(
             market_shock_pct=parsed.get("market_shock_pct", 0.0),
             sector_shocks=parsed.get("sector_shocks"),
         )
-    elif request.market_shock_pct is not None or request.sector_shocks is not None:
+    elif payload.market_shock_pct is not None or payload.sector_shocks is not None:
         r = service.apply_shock(
             portfolio,
-            market_shock_pct=request.market_shock_pct or 0.0,
-            sector_shocks=request.sector_shocks,
+            market_shock_pct=payload.market_shock_pct or 0.0,
+            sector_shocks=payload.sector_shocks,
         )
     else:
         raise HTTPException(
@@ -447,7 +452,9 @@ def stress_test(
 
 
 @router.get("/optimize", response_model=PortfolioOptimization)
+@limiter.limit("20/minute")
 def optimize(
+    request: Request,
     method: str = "min_variance",
     portfolio: Portfolio = Depends(get_current_portfolio),
     db: Session = Depends(get_db),
@@ -495,16 +502,18 @@ def weaknesses(
 
 
 @router.post("/what-if", response_model=WhatIfResult)
+@limiter.limit("30/minute")
 def what_if(
-    request: WhatIfRequest,
+    request: Request,
+    payload: WhatIfRequest,
     portfolio: Portfolio = Depends(get_current_portfolio),
     db: Session = Depends(get_db),
 ):
     try:
         r = WhatIfService(db).simulate(
             portfolio,
-            changes=[c.model_dump() for c in request.changes],
-            include_costs=request.include_costs,
+            changes=[c.model_dump() for c in payload.changes],
+            include_costs=payload.include_costs,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -1077,16 +1077,24 @@ above -- which added `AssistantPage`/`services/assistant.ts` and the
   Phase 21 built this project's coverage on; deferred for the same
   reason as the backend finding above. See `docs/security-review.md`
   Section 5.2.
-- **The default rate limit (120/minute per client IP, Phase 34) is a
-  single flat number across every route with no limit of its own** --
-  it doesn't distinguish a cheap `GET /stocks/{symbol}` from an expensive
-  `POST /portfolio/optimize` (covariance optimization) or `POST
-  /portfolio/what-if` (a multi-position simulation). A scripted client
-  could still spend 120 requests/minute entirely on the expensive
-  endpoints. Tightening per-endpoint limits by actual computational cost
-  was judged out of scope for this phase (it would need real load
-  testing to set sensible per-route numbers, not guessed ones) -- a
-  candidate for a future, measurement-backed pass.
+- **The default rate limit (120/minute per client IP, Phase 34) was
+  originally a single flat number across every route with no limit of
+  its own.** Partially addressed in the real-data upgrade's Phase J:
+  `GET /portfolio/optimize` (covariance optimization), `POST
+  /portfolio/what-if` (multi-position simulation), `POST
+  /portfolio/stress-test`, `GET /portfolio/risk-attribution`, and `GET
+  /discover` (O(n) Fit Engine batch ranking) now each carry their own
+  tighter 20-30/minute limit (see `app/services/rate_limit.py`). These
+  numbers are reasonable defaults, not measured against real load --
+  this sandbox has no production traffic to load-test against, so they
+  are a judgment call, not a tuned figure. Other non-trivial
+  computations (`/portfolio/risk`'s Ledoit-Wolf covariance,
+  `/portfolio-fit/{symbol}`'s single-stock Fit computation,
+  `/market/regime`) still only have the flat 120/minute default --
+  tightening every computationally-nontrivial route was judged a larger
+  scope than this phase, which focused on the specific endpoints the
+  Phase 34 gap named. A scripted client could still spend its full
+  quota on one of those still-undecorated routes.
 - **Structured logging and the correlation-ID middleware are new and
   Phase-34-only** -- no log LINES from before this phase were migrated
   to the new JSON format (there was nothing to migrate; the old format

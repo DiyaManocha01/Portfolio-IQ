@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_portfolio
@@ -7,12 +7,15 @@ from app.models.portfolio import Portfolio
 from app.portfolio.discover_service import DiscoverService
 from app.portfolio.fit_service import PRESETS
 from app.schemas.portfolio import DiscoverItem
+from app.services.rate_limit import limiter
 
 router = APIRouter(tags=["discover"])
 
 
 @router.get("/discover", response_model=list[DiscoverItem])
+@limiter.limit("30/minute")
 def discover(
+    request: Request,
     limit: int = 20,
     preset: str | None = None,
     sector: str | None = None,

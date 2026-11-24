@@ -7,6 +7,7 @@ import { Card } from '../components/Card';
 import { ErrorBlock, LoadingBlock, EmptyBlock } from '../components/States';
 import { FeedStatusBadge, MarketSessionBadge, TickStatusBadge } from '../components/Badge';
 import { RegimeCard } from '../components/RegimeCard';
+import { Sparkline } from '../charts/Sparkline';
 import { formatCurrency, formatSignedPct, formatVolume, timeAgo } from '../utils/format';
 import type { IndexQuote, MoverItem, TickOut } from '../types/api';
 
@@ -222,6 +223,12 @@ function MoversList({ moves }: { moves: TickOut[] }) {
 // own values moved actually re-render/repaint.
 const TickCard = memo(function TickCard({ tick }: { tick: TickOut }) {
   const positive = (tick.change ?? 0) >= 0;
+  // Real-data upgrade Phase I: a glance-level recent-price sparkline,
+  // fetched once per card (keyed on symbol, not on the live tick --
+  // so a ~1/sec price push doesn't refetch candle history every time).
+  const candles = useAsync(() => marketService.getCandles(tick.symbol, 30), [tick.symbol]);
+  const closes = candles.data?.candles.map((c) => c.close) ?? [];
+
   return (
     <Link to={`/stocks/${tick.symbol}`}>
       <Card className="h-full transition hover:border-brand-500/50 hover:shadow-lg">
@@ -238,6 +245,11 @@ const TickCard = memo(function TickCard({ tick }: { tick: TickOut }) {
             </span>
           )}
         </div>
+        {closes.length >= 2 && (
+          <div className="mt-2 -mx-1">
+            <Sparkline closes={closes} positive={positive} />
+          </div>
+        )}
         <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
           <span>Vol: {formatVolume(tick.volume)}</span>
           <span>{timeAgo(tick.last_traded_time)}</span>

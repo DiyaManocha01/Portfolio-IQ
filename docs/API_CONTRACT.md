@@ -207,7 +207,7 @@ and `diversification_ratio` (falls back to `"sample"` with intensity `0.0`
 when there are fewer than 2 holdings or fewer return observations than
 holdings).
 
-### GET /portfolio/optimize?method=min_variance|max_sharpe|risk_parity (Phase 9)
+### GET /portfolio/optimize?method=min_variance|max_sharpe|risk_parity (Phase 9; rate-limited 20/minute, real-data upgrade Phase J)
 ```json
 {
   "method": "min_variance", "feasible": true, "note": null,
@@ -229,7 +229,7 @@ assumed risk-free rate, or for any method with fewer than 2 holdings.
 Unknown `method` values return 400. ALWAYS render the disclaimer and never
 phrase this as an instruction to rebalance.
 
-### POST /portfolio/what-if (Phase 11)
+### POST /portfolio/what-if (Phase 11; rate-limited 30/minute, real-data upgrade Phase J)
 Body: `{ "changes": [{ "symbol": "TCS", "new_quantity": 0 }, { "symbol": "SUNPHARMA", "new_quantity": 20 }], "include_costs": true }`
 `new_quantity` is an ABSOLUTE target (not a delta): `0` fully exits a
 position; a symbol not currently held with `new_quantity > 0` is a
@@ -258,7 +258,7 @@ specific broker's live rate card -- see `docs/limitations.md`. Pass
 current quantity) produce an empty `trades` list and all-zero `deltas`.
 ALWAYS render the disclaimer; never phrase this as a trade instruction.
 
-### GET /portfolio/risk-attribution (Phase 14)
+### GET /portfolio/risk-attribution (Phase 14; rate-limited 30/minute, real-data upgrade Phase J)
 ```json
 {
   "portfolio_annualized_volatility": 0.1975,
@@ -282,7 +282,7 @@ weight; `<1` means less. `marginal_contribution_to_vol` is the raw
 sensitivity `d(portfolio_vol)/d(weight_i)`, same units as
 `portfolio_annualized_volatility`. See `docs/methodology.md` Section 11.
 
-### POST /portfolio/stress-test (Phase 15)
+### POST /portfolio/stress-test (Phase 15; rate-limited 30/minute, real-data upgrade Phase J)
 Body: exactly one of:
 - `{ "scenario_preset": "covid_2020_crash" | "gfc_2008" | "moderate_correction" }`
 - `{ "scenario_text": "IT stocks crash 20%" }` (parsed via a narrow regex matcher, NOT an LLM -- unparseable text returns 400)
@@ -522,7 +522,7 @@ required (same rationale as `/stocks/*`).
 
 ## Discover & Portfolio Fit (the core USP)
 
-### GET /discover?limit=20&preset=balanced|risk_averse|growth_seeking&sector=... -> list, already sorted by portfolio_fit descending
+### GET /discover?limit=20&preset=balanced|risk_averse|growth_seeking&sector=... -> list, already sorted by portfolio_fit descending (rate-limited 30/minute, real-data upgrade Phase J)
 ```json
 [{ "symbol": "SUNPHARMA", "name": "Sun Pharmaceutical Industries", "sector": "Healthcare",
    "current_price": 1831.68, "ml_outlook": "NEUTRAL", "prediction_probability": 0.494,

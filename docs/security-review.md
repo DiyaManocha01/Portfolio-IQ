@@ -281,6 +281,24 @@ the intended design, no gap found --
   rate-limited. Verified with an isolated throwaway `Limiter` instance
   (`app/tests/test_rate_limit.py`) rather than hammering the real shared
   limiter state 120+ times inside the real test suite.
+- **Real-data upgrade Phase J: five of the heaviest computational routes
+  now carry their own tighter per-route limit** (20-30/minute) instead of
+  relying on the flat 120/minute default -- `GET /portfolio/optimize`,
+  `POST /portfolio/what-if`, `POST /portfolio/stress-test`, `GET
+  /portfolio/risk-attribution`, `GET /discover`. This directly closes
+  part of the gap this document's own Section 5.1 (production readiness,
+  Phase 34) previously flagged: "the default rate limit... doesn't
+  distinguish a cheap GET from an expensive POST /portfolio/optimize."
+  `POST /portfolio/stress-test` and `POST /portfolio/what-if` each had an
+  existing body parameter literally named `request` (their Pydantic
+  model), which collided with slowapi's requirement that the real
+  Starlette `Request` object be a parameter named exactly `request` --
+  resolved by renaming the body parameter to `payload` (an internal
+  rename only; the JSON wire contract is unchanged, confirmed by the
+  existing `test_stress_test.py`/`test_whatif.py` suites passing
+  unmodified). The chosen limits are reasonable defaults, not measured
+  against real load -- see `docs/limitations.md`'s Phase 34 section for
+  what's still undecorated and why.
 - **Structured JSON logging + a per-request correlation ID**
   (`app/services/logging_config.py`, `RequestContextMiddleware` in
   `app/main.py`) — every log line is now one JSON object (level, logger,
