@@ -10,6 +10,7 @@ const mockedGetRiskAttribution = vi.mocked(portfolioService.getRiskAttribution);
 const mockedGetAdvancedPerformance = vi.mocked(portfolioService.getAdvancedPerformance);
 const mockedGetHealth = vi.mocked(portfolioService.getHealth);
 const mockedGetWeaknesses = vi.mocked(portfolioService.getWeaknesses);
+const mockedGetHeatmap = vi.mocked(portfolioService.getHeatmap);
 
 function neverResolves<T>() {
   return new Promise<T>(() => {});
@@ -17,6 +18,9 @@ function neverResolves<T>() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // None of the existing tests below assert on the heatmap specifically --
+  // give it a harmless default so they don't also have to know about it.
+  mockedGetHeatmap.mockResolvedValue({ items: [], total_day_pnl: 0, data_source: 'DEV_SAMPLE' });
 });
 
 describe('IntelligencePage - Risk Attribution section', () => {
@@ -91,6 +95,14 @@ describe('IntelligencePage - Advanced Performance section', () => {
       realized_pnl: 0,
       total_pnl: 5000,
       annualized_volatility_realized: 0.18,
+      sharpe_ratio_realized: 0.3,
+      cagr: 0.12,
+      benchmark_cagr: 0.1,
+      beta: 0.95,
+      alpha: 0.02,
+      tracking_error: 0.05,
+      information_ratio: 0.4,
+      risk_free_rate_assumed: 0.06,
       data_source: 'DEV_SAMPLE',
     });
 

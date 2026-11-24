@@ -80,6 +80,70 @@ UI, the methodology doc, or a future paper, it's listed here.
   comparison would double-count or miss the change), but means
   `day_pnl` is not simply "today's portfolio_value minus yesterday's."
 
+## Benchmark Risk-Adjusted Stats (real-data upgrade, Phase F)
+
+- **`cagr` and `alpha` use two different, legitimate annualization
+  conventions, not an inconsistency.** `cagr` is geometric (from the
+  value series directly, `(end/start)^(252/n)-1`, this codebase's
+  existing 252-trading-day convention); `alpha` is arithmetic-mean-based
+  (the standard CAPM/Jensen's alpha convention, `mean(returns)*252`). The
+  two numbers are not expected to agree with each other for the same
+  underlying series.
+- **`beta`/`alpha`/`tracking_error`/`information_ratio` all require >=20
+  overlapping trading days against the NIFTY 50 benchmark** -- the same
+  floor `analytics.beta()` already enforced before this phase. Below that,
+  every one of these fields is `null`, not a number computed from too
+  little data to be meaningful.
+- **Only NIFTY 50 is supported as a benchmark.** NIFTY 500 and
+  sector-specific indices (the brief's "relevant sector indices") were
+  scoped but not implemented -- there is no synthetic DEV_SAMPLE series
+  for them, and adding one for every possible sector was judged a larger,
+  separate increment than this phase's core benchmark-stats work.
+- **`sharpe_ratio_realized` is a third, separately-computed Sharpe
+  figure**, alongside `/portfolio/risk`'s `sharpe_ratio` (covariance-based)
+  and `/portfolio/optimize`'s per-method Sharpe (PyPortfolioOpt's own
+  calculation) -- each uses a different underlying return series for a
+  different purpose; none of the three are expected to match exactly.
+
+## Market Movers, Index Overview, and Portfolio Heatmap (real-data upgrade, Phase E)
+
+- **Movers are computed from the 20-symbol watchlist only, never the full
+  NSE/BSE exchange** -- this project has no feed for the full exchange.
+  Every `/market/movers` response carries `universe_scope: "watchlist"`
+  and `universe_size` explicitly rather than implying broader coverage.
+- **Volume-dependent categories (`volume_leaders`, `unusual_volume`) are
+  always empty in the default, no-live-feed mode.** A `FIXTURE` tick
+  (`fixture_replay_provider.py`) never carries volume by design -- it
+  exposes exactly the same close price `MarketDataService.get_quote()`
+  already returns, honestly, rather than fabricating an intraday volume
+  figure that was never observed. Price-based categories (gainers/losers,
+  52-week proximity) still work in this mode, since they don't need a
+  live volume reading.
+- **NIFTY IT's live (`LiveYFinanceProvider`) ticker is unverified.**
+  `YFINANCE_INDEX_TICKERS` maps it to `^CNXIT` (the believed pre-rebrand
+  Yahoo Finance ticker), based on general knowledge, not a live response
+  -- this sandbox (and every other session in this project's history)
+  cannot reach `finance.yahoo.com` to confirm it. `^NSEI` (NIFTY 50) and
+  `^NSEBANK` (NIFTY BANK) are higher-confidence but still not independently
+  verified from any session. Confirm all three against a real response
+  before relying on them live.
+- **SENSEX is not supported at all**, reported explicitly in
+  `GET /market/indices`' `unsupported` field. It's a BSE index, and this
+  project's real-time feed only ever subscribes via Angel One's NSE
+  cash-market exchange type (`EXCHANGE_TYPE_NSE_CM` in
+  `angelone_ws_client.py`) -- no BSE exchange wiring exists.
+- **Index overview tiles use daily close history, not the live tick
+  feed** -- the Phase 24 watchlist and live cache only ever covered
+  individual stocks, never indices, so `GET /market/indices` reads
+  `MarketDataService.get_index_history()` (same pull-based path as stock
+  quotes) rather than `live_cache`.
+- **The portfolio heatmap's `day_pnl_pct` is identical to a holding's own
+  daily % price change** -- quantity cancels out of the formula
+  algebraically (`day_pnl / (quantity * previous_close)` reduces to
+  `(current - previous) / previous`), so it is not a separate calculation
+  from what Phase D already computes, just redisplayed per-holding for a
+  heatmap layout.
+
 ## Real-Time Market Data (Phase 24)
 
 - **Bid/ask price, bid/ask quantity, and VWAP are always `null` for Angel

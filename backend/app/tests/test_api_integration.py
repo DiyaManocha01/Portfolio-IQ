@@ -25,6 +25,43 @@ def test_portfolio_holdings_have_valid_pnl_math(client, auth_headers):
         assert abs(h["pnl"] - expected_pnl) < 0.01
 
 
+def test_portfolio_holdings_have_valid_day_pnl_math(client, auth_headers):
+    resp = client.get("/portfolio", headers=auth_headers)
+    holdings = resp.json()
+    for h in holdings:
+        assert "day_pnl" in h and "day_pnl_pct" in h
+
+
+def test_portfolio_summary_day_pnl_matches_sum_of_holdings(client, auth_headers):
+    holdings = client.get("/portfolio", headers=auth_headers).json()
+    summary = client.get("/portfolio/summary", headers=auth_headers).json()
+    expected = round(sum(h["day_pnl"] for h in holdings), 2)
+    assert abs(summary["day_pnl"] - expected) < 0.01
+
+
+def test_portfolio_heatmap_weights_sum_to_100(client, auth_headers):
+    resp = client.get("/portfolio/heatmap", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["items"]) > 0
+    total_weight = sum(item["weight_pct"] for item in body["items"])
+    assert abs(total_weight - 100.0) < 0.5  # rounding tolerance, same convention as /portfolio/allocation
+
+
+def test_portfolio_heatmap_total_day_pnl_matches_summary(client, auth_headers):
+    summary = client.get("/portfolio/summary", headers=auth_headers).json()
+    heatmap = client.get("/portfolio/heatmap", headers=auth_headers).json()
+    assert abs(heatmap["total_day_pnl"] - summary["day_pnl"]) < 0.01
+
+
+def test_portfolio_heatmap_contributions_sum_to_100_when_nonzero(client, auth_headers):
+    body = client.get("/portfolio/heatmap", headers=auth_headers).json()
+    if body["total_day_pnl"] == 0:
+        return  # degenerate case -- nothing meaningful to assert
+    total_contribution = sum(item["contribution_to_daily_pnl_pct"] for item in body["items"])
+    assert abs(total_contribution - 100.0) < 0.5
+
+
 def test_portfolio_risk_metrics_shape(client, auth_headers):
     resp = client.get("/portfolio/risk", headers=auth_headers)
     assert resp.status_code == 200

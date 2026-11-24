@@ -51,6 +51,42 @@ BASE_PRICES: dict[str, float] = {
     # docs/limitations.md. Only used to seed the synthetic DevSampleProvider
     # series; LiveYFinanceProvider fetches the real ^NSEI level instead.
     "^NSEI": 24500.0,
+    # Secondary index overview tiles (real-data upgrade Phase E). Levels are
+    # illustrative approximations, same honesty caveat as ^NSEI above --
+    # never cited as a real index value. SENSEX is NOT included here: it's
+    # a BSE index, and this project's real-time feed only ever subscribes
+    # via Angel One's NSE cash-market exchange type (EXCHANGE_TYPE_NSE_CM
+    # in angelone_ws_client.py) -- no BSE exchange wiring exists, so
+    # there's nowhere for a real SENSEX quote to come from. See
+    # docs/limitations.md.
+    "^NSEBANK": 51000.0,
+    "^NSEIT": 35000.0,
+}
+
+# Friendly display name -> internal provider symbol, for index overview
+# tiles (real-data upgrade Phase E). Not a Stock/DB entity -- indices are
+# fetched straight from the provider, same pattern as the existing NIFTY 50
+# benchmark (see MarketDataService.get_benchmark_history/get_index_history).
+INDEX_SYMBOLS: dict[str, str] = {
+    "NIFTY 50": "^NSEI",
+    "NIFTY BANK": "^NSEBANK",
+    "NIFTY IT": "^NSEIT",
+}
+
+# Internal index symbol -> the actual ticker LiveYFinanceProvider passes to
+# yfinance. Kept as its own mapping (not the generic "^ passthrough" logic
+# used for ^NSEI) because this project's confidence in each ticker differs:
+# ^NSEI is already used successfully elsewhere in this codebase; ^NSEBANK
+# is a commonly-cited Yahoo Finance ticker for NIFTY BANK; the NIFTY IT
+# ticker is NOT confidently known -- Yahoo Finance is believed to still use
+# the pre-rebrand "CNX IT" name (^CNXIT) rather than a NIFTY-branded one,
+# but this has NOT been verified from any sandbox session (network-blocked
+# to finance.yahoo.com throughout this project's history). Confirm this
+# against a real response before relying on NIFTY IT's live data.
+YFINANCE_INDEX_TICKERS: dict[str, str] = {
+    "^NSEI": "^NSEI",
+    "^NSEBANK": "^NSEBANK",
+    "^NSEIT": "^CNXIT",  # UNVERIFIED -- see comment above
 }
 
 SECTORS: dict[str, tuple[str, str]] = {
@@ -321,7 +357,10 @@ class LiveYFinanceProvider(MarketDataProvider):
 
         import yfinance as yf  # local import: optional dependency
 
-        yf_symbol = symbol if symbol.startswith("^") else f"{symbol}.NS"
+        if symbol in YFINANCE_INDEX_TICKERS:
+            yf_symbol = YFINANCE_INDEX_TICKERS[symbol]
+        else:
+            yf_symbol = symbol if symbol.startswith("^") else f"{symbol}.NS"
         ticker = yf.Ticker(yf_symbol)
         # auto_adjust=True (explicit, not relying on yfinance's own default):
         # OHLC is split/dividend-adjusted by yfinance itself, so return

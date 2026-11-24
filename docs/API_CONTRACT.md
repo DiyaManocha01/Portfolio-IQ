@@ -126,6 +126,9 @@ holding-level P&L contribution, and the realized/unrealized split. See
   "sector_contributions": [{ "sector": "Information Technology", "pnl": 8206.65, "contribution_pct": 42.2 }],
   "unrealized_pnl": 4502.01, "realized_pnl": 400.0, "total_pnl": 4902.01,
   "annualized_volatility_realized": 0.2008,
+  "sharpe_ratio_realized": 0.295, "cagr": 0.1038, "benchmark_cagr": 0.2062,
+  "beta": -0.065, "alpha": 0.1351, "tracking_error": 0.2891, "information_ratio": -0.075,
+  "risk_free_rate_assumed": 0.06,
   "data_source": "DEV_SAMPLE"
 }
 ```
@@ -141,11 +144,41 @@ is NIFTY 50 bought-and-held normalized to the same starting value as
 (splits/dividends): handled via `auto_adjust=True` on the underlying
 `yfinance` call, not separate logic here -- see ADR 0014.
 
+**`cagr`/`benchmark_cagr`/`beta`/`alpha`/`tracking_error`/`information_ratio`**
+(real-data upgrade Phase F): `cagr` uses this codebase's existing
+252-trading-day geometric annualization convention; `alpha` separately
+uses an arithmetic-mean-based annualized return (the standard CAPM/
+Jensen's alpha convention) -- the two are NOT the same calculation and
+are not expected to agree. `beta`/`alpha`/`tracking_error`/
+`information_ratio` are all `null` when fewer than 20 overlapping trading
+days exist against NIFTY 50 (same floor as `beta_vs_nifty50` elsewhere in
+this API) -- never a misleadingly precise number from too little data.
+Only NIFTY 50 is supported as a benchmark; NIFTY 500 and sector indices
+are not implemented -- see `docs/limitations.md`.
+
 ### GET /portfolio/allocation
 ```json
 { "by_stock": [{ "label": "TCS", "value": 34897.1, "pct": 13.8 }, ...],
   "by_sector": [{ "label": "Information Technology", "value": 78874.85, "pct": 31.2 }, ...] }
 ```
+
+### GET /portfolio/heatmap (real-data upgrade Phase E)
+```json
+{
+  "items": [
+    { "symbol": "TCS", "name": "Tata Consultancy Services", "sector": "Information Technology",
+      "weight_pct": 13.51, "day_pnl": 885.0, "day_pnl_pct": 2.51, "contribution_to_daily_pnl_pct": 153.34 }
+  ],
+  "total_day_pnl": 577.14, "data_source": "DEV_SAMPLE"
+}
+```
+`day_pnl_pct` is the holding's own today's % price move (quantity cancels
+out of the formula, so it's independent of position size) -- reuses
+`GET /portfolio`'s `day_pnl`/`day_pnl_pct` directly, not a separate
+calculation. `contribution_to_daily_pnl_pct` is a different, portfolio-level
+question: how much of today's TOTAL portfolio P&L this one holding
+represents (`0.0` when `total_day_pnl` is exactly 0 -- nothing to divide
+by, not an error).
 
 ### GET /portfolio/risk
 ```json
@@ -752,6 +785,53 @@ method, including why volatility extremes always override trend.
 `note` is non-null (and `factors` empty) only when there isn't enough
 price history yet to classify, in which case the response defaults to
 `SIDEWAYS` with `confidence: 0`.
+
+### GET /market/movers?top_n=5 (real-data upgrade Phase E, no auth -- same reasoning as `/stocks/*`)
+```json
+{
+  "gainers": [{ "symbol": "TCS", "price": 3615.99, "change_percent": 2.51, "volume": null,
+                "avg_volume_20d": 2399064.1, "volume_ratio": null,
+                "week52_high": 3852.89, "week52_low": 2856.37,
+                "pct_from_52w_high": -6.15, "pct_from_52w_low": 26.59 }],
+  "losers": [...], "volume_leaders": [...], "unusual_volume": [...],
+  "near_52w_high": [...], "near_52w_low": [...],
+  "universe_scope": "watchlist", "universe_size": 14, "data_source": "DEV_SAMPLE"
+}
+```
+Computed from the Phase 24 20-symbol watchlist only -- **never** the full
+NSE/BSE exchange, which this project has no feed for; always check
+`universe_scope`/`universe_size` before presenting these as exchange-wide.
+`volume`/`avg_volume_20d`/`volume_ratio` are `null` for every item, and
+`volume_leaders`/`unusual_volume` are empty arrays, whenever the real-time
+feed isn't connected (the default): a `FIXTURE` tick never carries volume
+(never fabricated). Price-only categories (`gainers`/`losers`/
+`near_52w_high`/`near_52w_low`) still populate normally in that mode.
+`unusual_volume` requires volume >= 2x the 20-day average;
+`near_52w_high`/`near_52w_low` require price within 2% of the 252-day
+high/low. A symbol with fewer than 20 days of stored daily history is
+silently excluded from every category.
+
+### GET /market/indices (real-data upgrade Phase E, no auth -- same reasoning as `/stocks/*`)
+```json
+{
+  "indices": [
+    { "name": "NIFTY 50", "symbol": "^NSEI", "price": 22137.13, "previous_close": 22137.73,
+      "change": -0.6, "change_percent": -0.0, "data_source": "DEV_SAMPLE" },
+    { "name": "NIFTY BANK", "symbol": "^NSEBANK", "price": 46063.62, "previous_close": 46074.8,
+      "change": -11.18, "change_percent": -0.02, "data_source": "DEV_SAMPLE" },
+    { "name": "NIFTY IT", "symbol": "^NSEIT", "price": 31535.89, "previous_close": 31501.46,
+      "change": 34.43, "change_percent": 0.11, "data_source": "DEV_SAMPLE" }
+  ],
+  "unsupported": ["SENSEX"]
+}
+```
+Computed from each index's own daily close history (`get_index_history`),
+not the live tick feed (which only ever covered the stock watchlist, never
+indices). SENSEX is always in `unsupported` -- it's a BSE index, and this
+project's real-time feed only ever subscribes via Angel One's NSE
+cash-market exchange type; no BSE exchange wiring exists. NIFTY IT's live
+(`LiveYFinanceProvider`) ticker (`^CNXIT`) is unverified against a real
+response -- see `docs/limitations.md` before citing a live NIFTY IT number.
 
 ## Alerts (Phase 27, requires auth -- unlike `/stocks/*` and `/screener`)
 

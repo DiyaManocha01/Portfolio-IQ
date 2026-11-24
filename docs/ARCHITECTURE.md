@@ -65,6 +65,7 @@ backend/
         fixture_replay_provider.py          # FIXTURE-tagged cache fill with no broker feed (Phase 24)
         snapshot_service.py                  # periodic live_cache -> intraday_candles (Phase 24)
         candle_resample.py                    # interval aggregation (1m->5m/15m/30m/1h) + gap detection (real-data upgrade Phase C)
+        market_movers_service.py               # gainers/losers/volume leaders/unusual volume/52w proximity, watchlist-scoped (real-data upgrade Phase E)
       news/
         rss_feeds.py           # Economic Times / Moneycontrol feed list (Phase 7)
         matching.py             # headline-to-stock regex matching

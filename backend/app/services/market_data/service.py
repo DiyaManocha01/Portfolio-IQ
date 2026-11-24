@@ -142,15 +142,22 @@ class MarketDataService:
         see MarketDataProvider.adjusted and docs/limitations.md."""
         return self.provider.adjusted
 
-    def get_benchmark_history(self, days: int = 365) -> list:
-        """Returns raw OHLCVBar history for the NIFTY 50 benchmark (Phase 5, beta calc).
+    def get_index_history(self, internal_symbol: str, days: int = 365) -> list:
+        """Returns raw OHLCVBar history for an index (real-data upgrade
+        Phase E: NIFTY 50/BANK/IT overview tiles, benchmark comparisons).
 
         Deliberately NOT persisted through the Stock/MarketData DB tables --
-        the benchmark isn't a holding or a discoverable stock, it's only
-        used as an input to beta calculations, computed on demand. Goes
+        an index isn't a holding or a discoverable stock, it's only used as
+        an input to beta/overview calculations, computed on demand. Goes
         straight to the provider (which is cache-first for
-        LiveYFinanceProvider, same as every other symbol).
+        LiveYFinanceProvider, same as every other symbol). ``internal_symbol``
+        is the provider-level key (e.g. ``^NSEI``), not the display name --
+        see ``app.services.market_data.providers.INDEX_SYMBOLS``.
         """
+        return self.provider.get_history(internal_symbol, days=days)
+
+    def get_benchmark_history(self, days: int = 365) -> list:
+        """Returns raw OHLCVBar history for the NIFTY 50 benchmark (Phase 5, beta calc)."""
         from app.services.market_data.nifty100 import BENCHMARK_SYMBOL
 
-        return self.provider.get_history(BENCHMARK_SYMBOL, days=days)
+        return self.get_index_history(BENCHMARK_SYMBOL, days=days)

@@ -57,6 +57,64 @@ def _drawdown_series(values: pd.Series) -> list[dict]:
     ]
 
 
+# Real-data upgrade Phase F: benchmark-relative risk-adjusted stats.
+RISK_FREE_RATE = 0.06  # same assumption as PortfolioRiskService's Sharpe ratio and optimization_service.py
+MIN_OVERLAPPING_OBSERVATIONS = 20  # same floor as analytics.beta()
+
+
+def _annualized_return(values: pd.Series) -> float | None:
+    """CAGR using this codebase's existing 252-trading-day-per-year
+    annualization convention (see analytics.volatility_from_returns's
+    np.sqrt(252)), not calendar days -- a different, simpler convention
+    than the arithmetic-mean-based annualized return _benchmark_risk_stats
+    uses for alpha below; both are legitimate, commonly-used conventions
+    for different purposes, not an inconsistency to reconcile. None if
+    fewer than 2 observations exist.
+    """
+    if len(values) < 2:
+        return None
+    start, end = float(values.iloc[0]), float(values.iloc[-1])
+    if start <= 0:
+        return None
+    n_periods = len(values) - 1
+    return float((end / start) ** (252 / n_periods) - 1)
+
+
+def _benchmark_risk_stats(portfolio_returns: pd.Series, benchmark_close: pd.Series) -> dict:
+    """Beta, alpha (Jensen's, annualized), tracking error, and information
+    ratio vs. a benchmark -- computed from the same aligned, inner-joined
+    return series analytics.beta() already uses, with the same
+    >=20-observation floor. Returns None for every field (not a
+    misleadingly precise number from a handful of points) when there
+    isn't enough overlapping history -- same discipline as beta() itself.
+    """
+    benchmark_returns = benchmark_close.pct_change()
+    aligned = pd.concat([portfolio_returns, benchmark_returns], axis=1, join="inner").dropna()
+    if len(aligned) < MIN_OVERLAPPING_OBSERVATIONS:
+        return {"beta": None, "alpha": None, "tracking_error": None, "information_ratio": None}
+
+    port_r = aligned.iloc[:, 0]
+    bench_r = aligned.iloc[:, 1]
+    beta_value = analytics.beta(port_r, bench_r)
+
+    excess = port_r - bench_r
+    tracking_error = float(excess.std() * math.sqrt(252))
+    information_ratio = (float(excess.mean() * 252) / tracking_error) if tracking_error else None
+
+    alpha = None
+    if beta_value is not None:
+        port_annual_return = float(port_r.mean() * 252)
+        bench_annual_return = float(bench_r.mean() * 252)
+        alpha = port_annual_return - (RISK_FREE_RATE + beta_value * (bench_annual_return - RISK_FREE_RATE))
+
+    return {
+        "beta": round(beta_value, 3) if beta_value is not None else None,
+        "alpha": round(alpha, 4) if alpha is not None else None,
+        "tracking_error": round(tracking_error, 4),
+        "information_ratio": round(information_ratio, 3) if information_ratio is not None else None,
+    }
+
+
 def _realized_pnl(db: Session, portfolio: Portfolio) -> float:
     total = (
         db.query(Transaction)
@@ -84,6 +142,10 @@ def get_advanced_performance(db: Session, portfolio: Portfolio, days: int = 180)
     drawdown: list[dict] = []
     benchmark: list[dict] = []
     annualized_volatility_realized = None
+    sharpe_ratio_realized = None
+    cagr = None
+    benchmark_cagr = None
+    beta = alpha = tracking_error = information_ratio = None
 
     if points:
         values = pd.Series(
@@ -101,10 +163,21 @@ def get_advanced_performance(db: Session, portfolio: Portfolio, days: int = 180)
         ]
         drawdown = _drawdown_series(values)
         benchmark = _benchmark_series(market_data, days, normalize_to=start_value)
+        cagr = _annualized_return(values)
 
         realized_daily_returns = pct_change.dropna()
         if len(realized_daily_returns) >= 2:
             annualized_volatility_realized = round(float(realized_daily_returns.std() * math.sqrt(252)), 4)
+            sharpe_ratio_realized = round(analytics.sharpe_ratio(realized_daily_returns, RISK_FREE_RATE), 4)
+
+        benchmark_bars = market_data.get_benchmark_history(days=days)
+        if benchmark_bars:
+            benchmark_close = analytics.ohlcv_to_frame(benchmark_bars).set_index("date")["close"]
+            benchmark_cagr = _annualized_return(benchmark_close)
+            stats = _benchmark_risk_stats(pct_change, benchmark_close)
+            beta, alpha, tracking_error, information_ratio = (
+                stats["beta"], stats["alpha"], stats["tracking_error"], stats["information_ratio"],
+            )
 
     total_pnl_for_contribution = sum(h["pnl"] for h in holdings_with_metrics)
 
@@ -146,5 +219,13 @@ def get_advanced_performance(db: Session, portfolio: Portfolio, days: int = 180)
         "realized_pnl": realized_pnl,
         "total_pnl": round(unrealized_pnl + realized_pnl, 2),
         "annualized_volatility_realized": annualized_volatility_realized,
+        "sharpe_ratio_realized": sharpe_ratio_realized,
+        "cagr": round(cagr, 4) if cagr is not None else None,
+        "benchmark_cagr": round(benchmark_cagr, 4) if benchmark_cagr is not None else None,
+        "beta": beta,
+        "alpha": alpha,
+        "tracking_error": tracking_error,
+        "information_ratio": information_ratio,
+        "risk_free_rate_assumed": RISK_FREE_RATE,
         "data_source": data_source,
     }

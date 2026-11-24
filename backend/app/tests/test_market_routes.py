@@ -119,6 +119,33 @@ def test_candles_resamples_to_requested_interval(client, auth_headers, db_sessio
     assert bar["volume"] == 5000
 
 
+def test_market_indices_returns_nifty_tiles(client):
+    resp = client.get("/market/indices")
+    assert resp.status_code == 200
+    body = resp.json()
+    names = [i["name"] for i in body["indices"]]
+    assert "NIFTY 50" in names
+    assert "NIFTY BANK" in names
+    assert "NIFTY IT" in names
+    assert body["unsupported"] == ["SENSEX"]
+
+
+def test_market_indices_items_have_real_computed_prices(client):
+    body = client.get("/market/indices").json()
+    for item in body["indices"]:
+        assert item["price"] > 0
+        assert item["data_source"] in {"DEV_SAMPLE", "LIVE"}
+
+
+def test_market_movers_shape(client, auth_headers):
+    resp = client.get("/market/movers", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["universe_scope"] == "watchlist"
+    for key in ("gainers", "losers", "volume_leaders", "unusual_volume", "near_52w_high", "near_52w_low"):
+        assert key in body
+
+
 def test_ws_market_rejects_missing_token(client):
     import pytest
     from starlette.websockets import WebSocketDisconnect

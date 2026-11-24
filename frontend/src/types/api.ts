@@ -117,6 +117,14 @@ export interface AdvancedPerformance {
   realized_pnl: number;
   total_pnl: number;
   annualized_volatility_realized: number | null;
+  sharpe_ratio_realized: number | null;
+  cagr: number | null;
+  benchmark_cagr: number | null;
+  beta: number | null;
+  alpha: number | null;
+  tracking_error: number | null;
+  information_ratio: number | null;
+  risk_free_rate_assumed: number;
   data_source: 'DEV_SAMPLE' | 'LIVE';
 }
 
@@ -124,6 +132,62 @@ export interface AllocationSlice {
   label: string;
   value: number;
   pct: number;
+}
+
+export interface MoverItem {
+  symbol: string;
+  price: number;
+  change_percent: number | null;
+  volume: number | null;
+  avg_volume_20d: number | null;
+  volume_ratio: number | null;
+  week52_high: number | null;
+  week52_low: number | null;
+  pct_from_52w_high: number | null;
+  pct_from_52w_low: number | null;
+}
+
+export interface MarketMoversOut {
+  gainers: MoverItem[];
+  losers: MoverItem[];
+  volume_leaders: MoverItem[];
+  unusual_volume: MoverItem[];
+  near_52w_high: MoverItem[];
+  near_52w_low: MoverItem[];
+  universe_scope: string;
+  universe_size: number;
+  data_source: 'DEV_SAMPLE' | 'LIVE';
+}
+
+export interface IndexQuote {
+  name: string;
+  symbol: string;
+  price: number;
+  previous_close: number | null;
+  change: number | null;
+  change_percent: number | null;
+  data_source: 'DEV_SAMPLE' | 'LIVE';
+}
+
+export interface MarketIndicesOut {
+  indices: IndexQuote[];
+  unsupported: string[];
+}
+
+export interface HeatmapItem {
+  symbol: string;
+  name: string;
+  sector: string;
+  weight_pct: number;
+  day_pnl: number;
+  day_pnl_pct: number;
+  contribution_to_daily_pnl_pct: number;
+}
+
+export interface PortfolioHeatmap {
+  items: HeatmapItem[];
+  total_day_pnl: number;
+  data_source: 'DEV_SAMPLE' | 'LIVE';
 }
 
 export interface PortfolioAllocation {

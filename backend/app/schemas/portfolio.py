@@ -124,6 +124,47 @@ class AdvancedPerformance(BaseModel):
     realized_pnl: float
     total_pnl: float
     annualized_volatility_realized: float | None
+    # Real-data upgrade Phase F: benchmark-relative risk-adjusted stats,
+    # all computed from the same aligned portfolio-vs-NIFTY-50 daily return
+    # series (>=20 overlapping observations required, same floor as
+    # analytics.beta() -- every field is None below that, not a misleading
+    # number from too little data). `cagr` uses this codebase's existing
+    # 252-trading-day annualization convention; `alpha` separately uses an
+    # arithmetic-mean-based annualized return (the standard CAPM/Jensen's
+    # alpha convention) -- the two are not expected to agree and are not
+    # the same calculation. See docs/methodology.md / docs/limitations.md.
+    sharpe_ratio_realized: float | None
+    cagr: float | None
+    benchmark_cagr: float | None
+    beta: float | None
+    alpha: float | None
+    tracking_error: float | None
+    information_ratio: float | None
+    risk_free_rate_assumed: float
+    data_source: str
+
+
+class HeatmapItem(BaseModel):
+    """Real-data upgrade Phase E. ``day_pnl_pct`` is the stock's OWN
+    today's % price move (quantity cancels out of the day_pnl_pct
+    formula, so it equals (current_price - previous_close) / previous_close
+    * 100 regardless of position size) -- the figure a heatmap is
+    typically colored by. ``contribution_to_daily_pnl_pct`` is a
+    different, portfolio-level question: how much of TODAY's total
+    portfolio P&L this one holding represents."""
+
+    symbol: str
+    name: str
+    sector: str
+    weight_pct: float
+    day_pnl: float
+    day_pnl_pct: float
+    contribution_to_daily_pnl_pct: float
+
+
+class PortfolioHeatmap(BaseModel):
+    items: list[HeatmapItem]
+    total_day_pnl: float
     data_source: str
 
 

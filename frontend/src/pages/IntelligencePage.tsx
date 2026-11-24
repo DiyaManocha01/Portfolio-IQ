@@ -12,11 +12,13 @@ import { DrawdownChart } from '../charts/DrawdownChart';
 import { colorForIndex } from '../charts/palette';
 import { WeaknessCard } from '../components/WeaknessCard';
 import { formatCurrency, formatNumber, formatPct, formatProbabilityPct, formatSignedPct } from '../utils/format';
+import type { HeatmapItem } from '../types/api';
 
 export default function IntelligencePage() {
   const risk = useAsync(() => portfolioService.getRisk(), []);
   const attribution = useAsync(() => portfolioService.getRiskAttribution(), []);
   const advanced = useAsync(() => portfolioService.getAdvancedPerformance(), []);
+  const heatmap = useAsync(() => portfolioService.getHeatmap(), []);
   const health = useAsync(() => portfolioService.getHealth(), []);
   const weaknesses = useAsync(() => portfolioService.getWeaknesses(), []);
 
@@ -167,6 +169,37 @@ export default function IntelligencePage() {
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+              <StatCard
+                label="CAGR"
+                value={advanced.data.cagr !== null ? formatSignedPct(advanced.data.cagr * 100) : '—'}
+                tone={advanced.data.cagr !== null && advanced.data.cagr >= 0 ? 'positive' : 'negative'}
+              />
+              <StatCard
+                label="NIFTY 50 CAGR"
+                value={advanced.data.benchmark_cagr !== null ? formatSignedPct(advanced.data.benchmark_cagr * 100) : '—'}
+              />
+              <StatCard label="Beta" value={advanced.data.beta !== null ? advanced.data.beta.toFixed(2) : '—'} />
+              <StatCard
+                label="Alpha (ann.)"
+                value={advanced.data.alpha !== null ? formatSignedPct(advanced.data.alpha * 100) : '—'}
+                tone={advanced.data.alpha !== null && advanced.data.alpha >= 0 ? 'positive' : 'negative'}
+              />
+              <StatCard
+                label="Tracking Error"
+                value={advanced.data.tracking_error !== null ? formatPct(advanced.data.tracking_error * 100) : '—'}
+              />
+              <StatCard
+                label="Information Ratio"
+                value={advanced.data.information_ratio !== null ? advanced.data.information_ratio.toFixed(2) : '—'}
+              />
+            </div>
+            <p className="text-xs text-slate-600">
+              Risk-free rate assumed: {(advanced.data.risk_free_rate_assumed * 100).toFixed(0)}%. Beta/alpha/tracking
+              error/information ratio require at least 20 overlapping trading days against NIFTY 50 -- shown as "—"
+              otherwise, not a misleading number from too little data.
+            </p>
+
             <Card title="Portfolio vs. NIFTY 50" subtitle="Portfolio value compared to a NIFTY 50 buy-and-hold with the same starting value">
               {advanced.data.points.length > 0 ? (
                 <BenchmarkComparisonChart points={advanced.data.points} benchmark={advanced.data.benchmark} />
@@ -217,6 +250,25 @@ export default function IntelligencePage() {
               </Card>
             </div>
           </>
+        )}
+      </section>
+
+      {/* Live Portfolio Heatmap section (real-data upgrade Phase E) */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Live Portfolio Heatmap</h2>
+        {heatmap.loading && <LoadingBlock />}
+        {heatmap.error && <ErrorBlock message={heatmap.error} onRetry={heatmap.reload} />}
+        {heatmap.data && heatmap.data.items.length > 0 && (
+          <Card
+            title="Today's Move by Holding"
+            subtitle="Each tile's own daily price % change, sized by portfolio weight"
+            action={<DataSourceBadge source={heatmap.data.data_source} />}
+          >
+            <PortfolioHeatmapGrid items={heatmap.data.items} />
+          </Card>
+        )}
+        {heatmap.data && heatmap.data.items.length === 0 && (
+          <EmptyBlock title="No holdings yet" message="Add stocks to your portfolio to see the daily heatmap." />
         )}
       </section>
 
@@ -271,6 +323,40 @@ export default function IntelligencePage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function PortfolioHeatmapGrid({ items }: { items: HeatmapItem[] }) {
+  const sorted = [...items].sort((a, b) => b.weight_pct - a.weight_pct);
+  const maxAbsMove = Math.max(1, ...sorted.map((i) => Math.abs(i.day_pnl_pct)));
+
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+      {sorted.map((item) => {
+        const positive = item.day_pnl_pct >= 0;
+        // Opacity scales with how large today's move is relative to the
+        // biggest mover in this portfolio -- a visual intensity cue, not a
+        // claim about statistical significance.
+        const intensity = Math.min(1, Math.abs(item.day_pnl_pct) / maxAbsMove);
+        const bg = positive ? `rgba(34,197,94,${0.12 + intensity * 0.35})` : `rgba(239,68,68,${0.12 + intensity * 0.35})`;
+        return (
+          <div
+            key={item.symbol}
+            className="rounded-lg border border-base-border p-3"
+            style={{ backgroundColor: bg }}
+            title={`${item.sector} -- ${item.weight_pct.toFixed(1)}% of portfolio -- contributes ${item.contribution_to_daily_pnl_pct.toFixed(1)}% of today's total P&L`}
+          >
+            <p className="text-sm font-bold text-slate-100">{item.symbol}</p>
+            <p className={`mt-1 text-lg font-bold ${positive ? 'text-positive' : 'text-negative'}`}>
+              {formatSignedPct(item.day_pnl_pct)}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-400">
+              {item.weight_pct.toFixed(1)}% weight &middot; {formatCurrency(item.day_pnl, { compact: true })}
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type {
   PortfolioSummary,
   PortfolioPerformance,
   PortfolioAllocation,
+  PortfolioHeatmap,
   PortfolioRiskData,
   PortfolioHealth,
   PortfolioWeaknesses,
@@ -58,6 +59,13 @@ export async function getPerformance(days = 180): Promise<PortfolioPerformance> 
 
 export async function getAllocation(): Promise<PortfolioAllocation> {
   const res = await api.get<PortfolioAllocation>('/portfolio/allocation');
+  return res.data;
+}
+
+/** Real-data upgrade Phase E: live portfolio heatmap -- each holding's own
+ * daily % price move, weight, sector, and share of today's total P&L. */
+export async function getHeatmap(): Promise<PortfolioHeatmap> {
+  const res = await api.get<PortfolioHeatmap>('/portfolio/heatmap');
   return res.data;
 }
 

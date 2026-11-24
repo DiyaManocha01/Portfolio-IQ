@@ -10,6 +10,8 @@ vi.mock('../hooks/useMarketFeed');
 
 const mockedGetMarketStatus = vi.mocked(marketService.getMarketStatus);
 const mockedGetRegime = vi.mocked(marketService.getRegime);
+const mockedGetMovers = vi.mocked(marketService.getMovers);
+const mockedGetIndices = vi.mocked(marketService.getIndices);
 const mockedUseMarketFeed = vi.mocked(useMarketFeed);
 
 function neverResolves<T>() {
@@ -36,6 +38,23 @@ beforeEach(() => {
     as_of: '2026-11-11',
     note: null,
     data_source: 'DEV_SAMPLE',
+  });
+  mockedGetMovers.mockResolvedValue({
+    gainers: [],
+    losers: [],
+    volume_leaders: [],
+    unusual_volume: [],
+    near_52w_high: [],
+    near_52w_low: [],
+    universe_scope: 'watchlist',
+    universe_size: 0,
+    data_source: 'DEV_SAMPLE',
+  });
+  mockedGetIndices.mockResolvedValue({
+    indices: [
+      { name: 'NIFTY 50', symbol: '^NSEI', price: 22000, previous_close: 21950, change: 50, change_percent: 0.23, data_source: 'DEV_SAMPLE' },
+    ],
+    unsupported: ['SENSEX'],
   });
 });
 

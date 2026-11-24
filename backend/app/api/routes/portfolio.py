@@ -23,12 +23,14 @@ from app.schemas.portfolio import (
     CumulativeReturnPoint,
     DailyReturnPoint,
     DrawdownPoint,
+    HeatmapItem,
     HoldingContribution,
     HoldingCreate,
     HoldingOut,
     OptimizationAllocation,
     PortfolioAllocation,
     PortfolioHealth,
+    PortfolioHeatmap,
     PortfolioOptimization,
     PortfolioPerformance,
     PortfolioRisk,
@@ -282,6 +284,14 @@ def performance_advanced(
         realized_pnl=result["realized_pnl"],
         total_pnl=result["total_pnl"],
         annualized_volatility_realized=result["annualized_volatility_realized"],
+        sharpe_ratio_realized=result["sharpe_ratio_realized"],
+        cagr=result["cagr"],
+        benchmark_cagr=result["benchmark_cagr"],
+        beta=result["beta"],
+        alpha=result["alpha"],
+        tracking_error=result["tracking_error"],
+        information_ratio=result["information_ratio"],
+        risk_free_rate_assumed=result["risk_free_rate_assumed"],
         data_source=result["data_source"],
     )
 
@@ -308,6 +318,38 @@ def allocation(
     ]
 
     return PortfolioAllocation(by_stock=by_stock, by_sector=by_sector)
+
+
+@router.get("/heatmap", response_model=PortfolioHeatmap)
+def heatmap(
+    portfolio: Portfolio = Depends(get_current_portfolio),
+    db: Session = Depends(get_db),
+):
+    """Real-data upgrade Phase E: live portfolio heatmap -- each holding's
+    own daily % price move, portfolio weight, sector, and share of
+    today's total portfolio P&L. Reuses Phase D's day_pnl directly rather
+    than recomputing a separate figure."""
+    holdings = portfolio_calc.get_holdings_with_metrics(db, portfolio)
+    total_current = sum(h["current_value"] for h in holdings) or 1.0
+    total_day_pnl = sum(h["day_pnl"] for h in holdings)
+
+    items = [
+        HeatmapItem(
+            symbol=h["symbol"],
+            name=h["name"],
+            sector=h["sector"],
+            weight_pct=round(h["current_value"] / total_current * 100, 2),
+            day_pnl=h["day_pnl"],
+            day_pnl_pct=h["day_pnl_pct"],
+            contribution_to_daily_pnl_pct=round(h["day_pnl"] / total_day_pnl * 100, 2) if total_day_pnl else 0.0,
+        )
+        for h in holdings
+    ]
+    return PortfolioHeatmap(
+        items=items,
+        total_day_pnl=round(total_day_pnl, 2),
+        data_source=MarketDataService(db).data_source_label,
+    )
 
 
 @router.get("/risk", response_model=PortfolioRisk)

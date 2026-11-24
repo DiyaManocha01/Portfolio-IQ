@@ -135,6 +135,52 @@ def test_advanced_performance_shape_on_seeded_portfolio(db_session):
     assert abs(result["unrealized_pnl"] - expected_unrealized) < 0.01
 
 
+def test_advanced_performance_benchmark_risk_stats_present(db_session):
+    """Real-data upgrade Phase F: CAGR/benchmark CAGR/beta/alpha/tracking
+    error/information ratio, all real computed numbers on 180 days of
+    seeded data (enough to clear the >=20-overlapping-observation floor)."""
+    portfolio = db_session.query(Portfolio).first()
+    result = service.get_advanced_performance(db_session, portfolio, days=180)
+    assert result["cagr"] is not None
+    assert result["benchmark_cagr"] is not None
+    assert result["beta"] is not None
+    assert result["alpha"] is not None
+    assert result["tracking_error"] is not None
+    assert result["tracking_error"] >= 0  # a standard deviation can't be negative
+    assert result["information_ratio"] is not None
+    assert result["sharpe_ratio_realized"] is not None
+    assert result["risk_free_rate_assumed"] == service.RISK_FREE_RATE
+
+
+def test_benchmark_risk_stats_none_with_too_little_history():
+    """Mirrors analytics.beta()'s own floor: fewer than 20 overlapping
+    daily observations must report None across the board, not a
+    misleadingly precise number from a handful of points."""
+    import pandas as pd
+
+    short_returns = pd.Series([0.01, -0.02, 0.005], index=pd.date_range("2026-01-01", periods=3))
+    short_close = pd.Series([100, 101, 99, 99.5], index=pd.date_range("2026-01-01", periods=4))
+    stats = service._benchmark_risk_stats(short_returns, short_close)
+    assert stats == {"beta": None, "alpha": None, "tracking_error": None, "information_ratio": None}
+
+
+def test_annualized_return_matches_known_cagr():
+    import pandas as pd
+
+    # Exactly 252 trading-day periods (253 points) doubling in value ->
+    # CAGR should be exactly 100% (one full "year" by this convention).
+    values = pd.Series([100.0] + [100.0] * 251 + [200.0])
+    cagr = service._annualized_return(values)
+    assert cagr is not None
+    assert abs(cagr - 1.0) < 1e-9
+
+
+def test_annualized_return_none_for_single_point():
+    import pandas as pd
+
+    assert service._annualized_return(pd.Series([100.0])) is None
+
+
 def test_holding_contributions_sum_to_roughly_total_pnl_pct(db_session):
     portfolio = db_session.query(Portfolio).first()
     result = service.get_advanced_performance(db_session, portfolio, days=180)

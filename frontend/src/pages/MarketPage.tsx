@@ -8,11 +8,13 @@ import { ErrorBlock, LoadingBlock, EmptyBlock } from '../components/States';
 import { FeedStatusBadge, MarketSessionBadge, TickStatusBadge } from '../components/Badge';
 import { RegimeCard } from '../components/RegimeCard';
 import { formatCurrency, formatSignedPct, formatVolume, timeAgo } from '../utils/format';
-import type { TickOut } from '../types/api';
+import type { IndexQuote, MoverItem, TickOut } from '../types/api';
 
 export default function MarketPage() {
   const initial = useAsync(() => marketService.getMarketStatus(), []);
   const regime = useAsync(() => marketService.getRegime(), []);
+  const indices = useAsync(() => marketService.getIndices(), []);
+  const movers = useAsync(() => marketService.getMovers(), []);
   const feed = useMarketFeed();
   const [query, setQuery] = useState('');
 
@@ -66,6 +68,8 @@ export default function MarketPage() {
         />
       )}
 
+      {indices.data && indices.data.indices.length > 0 && <IndicesRow indices={indices.data} />}
+
       {regime.data && <RegimeCard regime={regime.data} title="NIFTY 50 Market Regime" />}
 
       {ticks.length > 0 && (
@@ -78,6 +82,8 @@ export default function MarketPage() {
               <MoversList moves={losers} />
             </Card>
           </div>
+
+          {movers.data && <MarketMoversPanel data={movers.data} />}
 
           <input
             value={query}
@@ -99,6 +105,93 @@ export default function MarketPage() {
         </>
       )}
     </div>
+  );
+}
+
+function IndicesRow({ indices }: { indices: import('../types/api').MarketIndicesOut }) {
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {indices.indices.map((idx) => (
+          <IndexTile key={idx.symbol} index={idx} />
+        ))}
+      </div>
+      {indices.unsupported.length > 0 && (
+        <p className="text-xs text-slate-600">
+          Not shown: {indices.unsupported.join(', ')} -- see docs/limitations.md for why.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function IndexTile({ index }: { index: IndexQuote }) {
+  const positive = (index.change ?? 0) >= 0;
+  return (
+    <Card className="h-full">
+      <p className="text-sm font-semibold text-slate-300">{index.name}</p>
+      <div className="mt-2 flex items-baseline gap-2">
+        <span className="text-xl font-bold text-slate-100">{formatCurrency(index.price, { compact: true })}</span>
+        {index.change !== null && (
+          <span className={`text-sm font-medium ${positive ? 'text-positive' : 'text-negative'}`}>
+            {formatSignedPct(index.change_percent)}
+          </span>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function MarketMoversPanel({ data }: { data: import('../types/api').MarketMoversOut }) {
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-slate-600">
+        Computed from the tracked watchlist only ({data.universe_size} symbols), not the full exchange.
+      </p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card title="Volume Leaders" subtitle="Highest traded volume today">
+          <MoverList items={data.volume_leaders} metric="volume" />
+        </Card>
+        <Card title="Unusual Volume" subtitle="Volume >= 2x the 20-day average">
+          <MoverList items={data.unusual_volume} metric="volume_ratio" />
+        </Card>
+        <Card title="Near 52-Week High" subtitle="Within 2% of the 52-week high">
+          <MoverList items={data.near_52w_high} metric="pct_from_52w_high" />
+        </Card>
+        <Card title="Near 52-Week Low" subtitle="Within 2% of the 52-week low">
+          <MoverList items={data.near_52w_low} metric="pct_from_52w_low" />
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function MoverList({
+  items,
+  metric,
+}: {
+  items: MoverItem[];
+  metric: 'volume' | 'volume_ratio' | 'pct_from_52w_high' | 'pct_from_52w_low';
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm text-slate-500">None right now.</p>;
+  }
+  return (
+    <ul className="space-y-2">
+      {items.map((item) => (
+        <li key={item.symbol} className="flex items-center justify-between text-sm">
+          <Link to={`/stocks/${item.symbol}`} className="font-medium text-slate-100 hover:text-brand-300">
+            {item.symbol}
+          </Link>
+          <span className="text-slate-400">
+            {metric === 'volume' && formatVolume(item.volume)}
+            {metric === 'volume_ratio' && (item.volume_ratio !== null ? `${item.volume_ratio.toFixed(1)}x avg` : '—')}
+            {metric === 'pct_from_52w_high' && formatSignedPct(item.pct_from_52w_high)}
+            {metric === 'pct_from_52w_low' && formatSignedPct(item.pct_from_52w_low)}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
