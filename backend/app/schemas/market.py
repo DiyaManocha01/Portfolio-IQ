@@ -15,7 +15,14 @@ class TickOut(BaseModel):
     low: float | None
     close: float | None
     volume: int | None
+    average_traded_price: float | None
+    vwap: float | None
+    bid: float | None
+    ask: float | None
+    bid_qty: int | None
+    ask_qty: int | None
     last_traded_time: datetime | None
+    data_received_at: datetime
     status: str
     source: str
 

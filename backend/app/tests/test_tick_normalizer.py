@@ -11,10 +11,13 @@ def test_from_angelone_ws_computes_change_and_pct():
         "high_price_of_the_day": 2965.0,
         "low_price_of_the_day": 2948.0,
         "volume_trade_for_the_day": 1_234_567,
+        "average_traded_price": 2958.25,
         "last_traded_timestamp": 1_700_000_000_000,
         "exchange_timestamp": 1_700_000_000_500,
     }
+    before = dt.datetime.now(tz=dt.timezone.utc)
     tick = from_angelone_ws(raw, symbol="RELIANCE", exchange="NSE")
+    after = dt.datetime.now(tz=dt.timezone.utc)
 
     assert tick.symbol == "RELIANCE"
     assert tick.price == 2960.50
@@ -25,6 +28,21 @@ def test_from_angelone_ws_computes_change_and_pct():
     assert tick.status == TickStatus.LIVE
     assert tick.source == "ANGELONE"
     assert tick.last_traded_time == dt.datetime.fromtimestamp(1_700_000_000_000 / 1000, tz=dt.timezone.utc)
+    # average_traded_price IS present in Angel One's Quote-mode packet and
+    # must be wired through, not silently dropped (a real bug found and
+    # fixed during the Phase B audit -- see docs/gap-analysis-realtime-upgrade.md).
+    assert tick.average_traded_price == 2958.25
+    # bid/ask/bid_qty/ask_qty/vwap are never present in Quote-mode (mode=2)
+    # packets -- honestly None, never fabricated, until SnapQuote (mode=3)
+    # support is added.
+    assert tick.bid is None
+    assert tick.ask is None
+    assert tick.bid_qty is None
+    assert tick.ask_qty is None
+    assert tick.vwap is None
+    # data_received_at is assigned at normalization time (not from the
+    # provider payload) -- just assert it's a real, current timestamp.
+    assert before <= tick.data_received_at <= after
 
 
 def test_from_angelone_ws_missing_previous_close():
@@ -54,6 +72,11 @@ def test_from_fixture_is_always_tagged_fixture():
     assert tick.source == "FIXTURE"
     assert tick.change == 50.0
     assert tick.last_traded_time == now
+    assert tick.average_traded_price is None
+    assert tick.vwap is None
+    assert tick.bid is None and tick.ask is None
+    assert tick.bid_qty is None and tick.ask_qty is None
+    assert tick.data_received_at is not None
 
 
 def test_from_fixture_no_previous_close():

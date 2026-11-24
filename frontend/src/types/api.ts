@@ -493,7 +493,14 @@ export interface TickOut {
   low: number | null;
   close: number | null;
   volume: number | null;
+  average_traded_price: number | null;
+  vwap: number | null;
+  bid: number | null;
+  ask: number | null;
+  bid_qty: number | null;
+  ask_qty: number | null;
   last_traded_time: string | null;
+  data_received_at: string;
   status: TickStatus;
   source: string;
 }

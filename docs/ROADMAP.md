@@ -30,6 +30,20 @@ caveats) — this file is the index, not the detail.
 | 21 | Testing & Security: Vitest frontend tests, dependency audit (42 findings -> 1), auth/assistant rate limiting |
 | 22 | Deployment: Docker Compose for the full stack |
 
+## Real-Data Upgrade (started 2026-11-24)
+
+A distinct initiative from the numbered phases above: upgrading toward a
+real, Indian-market-data-driven platform (additional live-data provider,
+richer real-time fields, corporate events, per-endpoint rate limiting,
+etc.), requested and lettered Phase A/B/... to avoid colliding with the
+numbered phases 1-34 already shipped (see `README.md`'s "What's
+implemented" for 23-34, which predate this file's last table update).
+
+| Phase | What shipped |
+|---|---|
+| A | Full repository audit against the upgrade brief -- `docs/gap-analysis-realtime-upgrade.md`. Found the real-time pipeline, provider abstraction, fundamentals, alerts, and AI assistant architecture already satisfy most of the brief; confirmed a fresh 429/71 passing-test baseline; confirmed this sandbox (like the original dev sandbox) cannot reach `upstox.com`, `nseindia.com`, `bseindia.com`, or `zerodha.com` -- no code changed. |
+| B | Fixed a real bug found during Phase A: `average_traded_price` (present on Angel One's wire format) was parsed and then silently dropped before reaching `NormalizedTick`; now wired through. Added `vwap`/`bid_qty`/`ask_qty`/`data_received_at` fields to `NormalizedTick`/`TickOut`, honestly `None` where Angel One's Quote-mode feed structurally can't supply them (documented in `docs/limitations.md`, not silently missing). Upstox integration and the NSE holiday calendar are both deferred -- neither can be done from any sandbox session (DNS-blocked), and the project owner chose to keep Angel One primary for now rather than have an unverified broker adapter built from training-data recollection of Upstox's protobuf feed. |
+
 ## Genuinely out of scope (not started)
 
 These were sketched early in the project's planning but never began

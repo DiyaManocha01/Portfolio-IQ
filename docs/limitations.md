@@ -32,6 +32,24 @@ UI, the methodology doc, or a future paper, it's listed here.
 
 ## Real-Time Market Data (Phase 24)
 
+- **Bid/ask price, bid/ask quantity, and VWAP are always `null` for Angel
+  One, structurally, not just unverified.** Found during the 2026-11-24
+  real-data-upgrade audit (`docs/gap-analysis-realtime-upgrade.md`):
+  `angelone_ws_client.py` only ever subscribes in WS 2.0 "Quote" mode
+  (mode=2), and Angel One's documented Quote-mode packet does not carry
+  best bid/ask or market depth at all -- that requires "SnapQuote" mode
+  (mode=3), which this project does not implement (its byte layout would
+  be just as unverifiable from any sandbox as mode=2's already is, below).
+  Before this audit, `tick_normalizer.py` read `best_bid_price`/
+  `best_ask_price` keys that `parse_tick()`'s Quote-mode dict never
+  produced -- silently yielding `None` always, even once a real feed is
+  connected and working correctly. This has been fixed to be explicit
+  (the fields are documented as always-`None` pending SnapQuote support,
+  not silently missing) rather than actually resolved — getting bid/ask
+  still needs SnapQuote mode implemented, a real future increment. Average
+  traded price (`average_traded_price`), which *is* present on the
+  Quote-mode wire format, was also found silently dropped before reaching
+  `NormalizedTick` and has been wired through.
 - **Angel One WebSocket binary tick layout is unverified against a real
   frame.** `angelone_ws_client.parse_tick()`'s byte offsets are built from
   Angel One's publicly documented WS 2.0 "Quote" format, never tested

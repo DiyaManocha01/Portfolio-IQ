@@ -649,7 +649,10 @@ present and that timestamp otherwise. See
       "symbol": "RELIANCE", "exchange": "NSE", "price": 2950.0,
       "previous_close": 2940.0, "change": 10.0, "change_percent": 0.34,
       "open": 2941.0, "high": 2960.0, "low": 2938.0, "close": 2940.0,
-      "volume": 1200000, "last_traded_time": "2026-11-11T09:59:00Z",
+      "volume": 1200000, "average_traded_price": 2947.5, "vwap": null,
+      "bid": null, "ask": null, "bid_qty": null, "ask_qty": null,
+      "last_traded_time": "2026-11-11T09:59:00Z",
+      "data_received_at": "2026-11-11T09:59:00Z",
       "status": "FIXTURE", "source": "FIXTURE"
     }
   ]
@@ -663,7 +666,14 @@ RECONNECTING | STOPPED`. Each tick's own `status` is
 render this status next to any price from this endpoint**; never imply a
 `FIXTURE` or `STALE` tick is a live price. `ticks` only contains symbols
 the cache currently has something for -- may be `[]` briefly after
-startup.
+startup. **`bid`/`ask`/`bid_qty`/`ask_qty`/`vwap` are always `null` from
+Angel One today** -- its WS 2.0 "Quote" mode (the only mode this app
+subscribes in) does not carry best bid/ask or market depth at all; that
+needs "SnapQuote" mode, not implemented (see `docs/limitations.md`).
+`average_traded_price` IS available from Angel One's Quote-mode packet and
+is populated. `data_received_at` is this server's own timestamp at
+normalization time -- distinct from `last_traded_time` (the exchange's own
+trade timestamp), useful for spotting feed lag.
 
 ### GET /market/candles/{symbol}?limit=390
 ```json

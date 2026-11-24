@@ -43,10 +43,24 @@ class NormalizedTick:
     low: float | None
     close: float | None
     volume: int | None
+    average_traded_price: float | None
     last_traded_time: dt.datetime | None
     exchange_timestamp: dt.datetime | None
+    data_received_at: dt.datetime
+    # bid/ask price+quantity and VWAP are always None from Angel One today:
+    # its WS 2.0 "Quote" mode (mode=2, the only mode this client subscribes
+    # in -- see angelone_ws_client.py) does not carry best bid/ask or
+    # depth at all; that requires "SnapQuote" mode (mode=3), which this
+    # project does not implement (its byte layout would be equally
+    # unverifiable from this sandbox -- see docs/limitations.md). These
+    # fields exist on the schema now so a provider that can supply them
+    # (SnapQuote, or a future broker) has somewhere to put them, without
+    # ever being silently fabricated in the meantime.
     bid: float | None
     ask: float | None
+    bid_qty: int | None
+    ask_qty: int | None
+    vwap: float | None
     status: TickStatus
     source: str
 
@@ -89,10 +103,15 @@ def from_angelone_ws(
         low=_opt_float(raw.get("low_price_of_the_day")),
         close=previous_close,
         volume=_opt_int(raw.get("volume_trade_for_the_day")),
+        average_traded_price=_opt_float(raw.get("average_traded_price")),
         last_traded_time=_from_epoch(ltt),
         exchange_timestamp=_from_epoch(exch_ts),
+        data_received_at=dt.datetime.now(tz=dt.timezone.utc),
         bid=_opt_float(raw.get("best_bid_price")),
         ask=_opt_float(raw.get("best_ask_price")),
+        bid_qty=_opt_int(raw.get("best_bid_quantity")),
+        ask_qty=_opt_int(raw.get("best_ask_quantity")),
+        vwap=None,  # not present in Quote-mode packets -- see NormalizedTick docstring
         status=status,
         source="ANGELONE",
     )
@@ -118,10 +137,15 @@ def from_fixture(
         low=None,
         close=previous_close,
         volume=None,
+        average_traded_price=None,
         last_traded_time=as_of,
         exchange_timestamp=as_of,
+        data_received_at=dt.datetime.now(tz=dt.timezone.utc),
         bid=None,
         ask=None,
+        bid_qty=None,
+        ask_qty=None,
+        vwap=None,
         status=TickStatus.FIXTURE,
         source="FIXTURE",
     )
