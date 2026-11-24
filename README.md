@@ -134,6 +134,63 @@ network access to market-data or Hugging Face vendors. In this mode:
 No live data is ever mislabeled as real -- see `docs/ARCHITECTURE.md` for
 the full provider-abstraction pattern.
 
+### Enabling real data
+
+The sandbox this project was built in has no outbound network access to
+any of these vendors (Yahoo Finance, Angel One, NSE/BSE, Economic
+Times/Moneycontrol RSS, Hugging Face) -- verified directly, not assumed.
+Every step below must be run **on your own machine, with real internet
+access** -- none of it can be run from that sandbox, no matter what
+credentials are provided.
+
+**Real market data (NIFTY 100 + benchmark, via yfinance):**
+```bash
+cd backend
+source venv/bin/activate
+python scripts/fetch_nifty100.py --out-fixture
+```
+Fetches 105 NIFTY-100 symbols + the NIFTY 50 benchmark, 3 years of daily
+OHLCV, adjusted for splits/dividends, into `backend/app/data/cache/`
+(gitignored -- local only). Reports `[FAIL]`/`[EMPTY]` per symbol rather
+than silently skipping bad data. `--out-fixture` additionally writes a
+small fixture to `backend/app/tests/fixtures/real_ohlcv_sample/`, meant
+to be committed as the project's first real (non-synthetic) test data.
+Then set `USE_LIVE_MARKET_DATA=true` in `backend/.env` and restart the
+backend -- `LiveYFinanceProvider` takes over automatically.
+
+**Real news (Economic Times / Moneycontrol RSS):**
+```bash
+python scripts/fetch_news_rss.py
+```
+Fetches 4 RSS feeds, matches headlines to your seeded stocks, writes
+`backend/app/data/news_cache/rss_headlines.json` (gitignored). Reports
+any feed that fails to fetch or comes back malformed rather than
+swallowing the error. Then set `USE_LIVE_NEWS=true` in `backend/.env`.
+
+**Real-time broker feed (Angel One):** requires your own Angel One
+trading account + API credentials. Set `ANGELONE_*` in `backend/.env`
+(never commit real values), run
+`python scripts/fetch_angelone_instruments.py` once to resolve the
+watchlist against Angel One's scrip master, then set
+`ENABLE_REALTIME_FEED=true`. See `docs/limitations.md`'s Phase 24 section
+for what is and isn't verified about the wire-format parsing before
+relying on this for a demo.
+
+**Real AI Assistant responses:** set a real `ANTHROPIC_API_KEY` in
+`backend/.env`. Unlike the vendors above, `api.anthropic.com` is
+reachable from the original build sandbox -- this is the one live
+integration that can plausibly be verified from a restricted
+environment, though it still requires a real key to actually run.
+
+**FinBERT sentiment:** set `USE_FINBERT=true` (requires `transformers`/
+`torch`, already in `requirements.txt`, and internet access to download
+`ProsusAI/finbert` on first run).
+
+None of the above requires code changes -- every provider is already
+implemented behind the abstraction described above. See
+`docs/acceptance-criteria.md` for exactly what has and hasn't been
+verified against live external data as of the last audit.
+
 ## What's implemented
 
 **Foundation (Phases 1-9)**
