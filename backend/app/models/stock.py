@@ -75,5 +75,13 @@ class FinancialMetric(Base):
     roce: Mapped[float | None] = mapped_column(Float, nullable=True)
     debt_to_equity: Mapped[float | None] = mapped_column(Float, nullable=True)
     source: Mapped[DataSource] = mapped_column(Enum(DataSource, name="data_source"), default=DataSource.DEV_SAMPLE)
+    # Real-data upgrade Phase G: when this row was actually fetched, distinct
+    # from `date` (the day it's filed under, for one-row-per-day caching).
+    # Exists so API responses can report a genuine retrieval timestamp per
+    # the brief's "Retrieval timestamp" requirement -- a per-FIELD retrieval
+    # timestamp isn't tracked, since every field in a FinancialMetric row
+    # comes from the same single provider call (there is nothing to
+    # distinguish between fields on this point) -- see docs/limitations.md.
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     stock: Mapped["Stock"] = relationship(back_populates="financial_metrics")

@@ -1,8 +1,9 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.models.corporate_event import CorporateEvent, CorporateEventType
 from app.models.stock import FinancialMetric, MarketData, Stock
 from app.services.market_data.providers import (
     SECTORS,
@@ -131,6 +132,55 @@ class MarketDataService:
         self.db.commit()
         self.db.refresh(metric)
         return metric
+
+    def get_corporate_events(self, stock: Stock, refresh_after_hours: int = 24) -> list[CorporateEvent]:
+        """Returns stored corporate events for `stock`, refreshing from the
+        provider at most once per `refresh_after_hours` (events don't
+        change intraday, same reasoning as Phase 26's fundamentals cache).
+        Upserts via the table's own (stock_id, event_type, event_date)
+        unique constraint -- re-running never duplicates a row; it's
+        checked here first (not via catching an IntegrityError) so a
+        provider returning the same event twice in one call doesn't
+        abort the whole batch.
+        """
+        most_recent = (
+            self.db.query(CorporateEvent)
+            .filter(CorporateEvent.stock_id == stock.id)
+            .order_by(CorporateEvent.created_at.desc())
+            .first()
+        )
+        needs_refresh = (
+            most_recent is None
+            or (datetime.now(timezone.utc) - most_recent.created_at) > timedelta(hours=refresh_after_hours)
+        )
+
+        if needs_refresh:
+            existing_keys = {
+                (e.event_type.value, e.event_date)
+                for e in self.db.query(CorporateEvent).filter(CorporateEvent.stock_id == stock.id).all()
+            }
+            for item in self.provider.get_corporate_events(stock.symbol):
+                key = (item.event_type, item.event_date)
+                if key in existing_keys:
+                    continue
+                self.db.add(
+                    CorporateEvent(
+                        stock_id=stock.id,
+                        event_type=CorporateEventType(item.event_type),
+                        event_date=item.event_date,
+                        description=item.description,
+                        source=self.provider.source,
+                    )
+                )
+                existing_keys.add(key)
+            self.db.commit()
+
+        return (
+            self.db.query(CorporateEvent)
+            .filter(CorporateEvent.stock_id == stock.id)
+            .order_by(CorporateEvent.event_date.asc())
+            .all()
+        )
 
     @property
     def data_source_label(self) -> str:

@@ -87,3 +87,51 @@ def test_fundamentals_api_route(client, auth_headers):
 def test_fundamentals_api_route_unknown_symbol_404(client, auth_headers):
     resp = client.get("/stocks/NOTREAL/fundamentals", headers=auth_headers)
     assert resp.status_code == 404
+
+
+# ---- Real-data upgrade Phase G: retrieved_at / availability metadata ----
+
+
+def test_fundamentals_api_route_includes_retrieval_metadata(client, auth_headers):
+    resp = client.get("/stocks/WIPRO/fundamentals", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "retrieved_at" in body
+    assert isinstance(body["availability"], dict)
+    # DEV_SAMPLE populates every fundamental field, so every flag is True.
+    assert set(body["availability"].keys()) == {
+        "pe_ratio", "market_cap", "eps", "dividend_yield", "book_value",
+        "revenue_growth_yoy", "profit_growth_yoy", "roe", "roce", "debt_to_equity",
+    }
+    assert all(body["availability"].values())
+
+
+def test_availability_reflects_genuinely_missing_fields(db_session):
+    market_data = MarketDataService(db_session)
+    stock = market_data.get_or_create_stock("INFY")
+    metric = market_data.get_fundamentals(stock)
+    metric.roce = None  # simulate a field the data source genuinely didn't return
+    db_session.commit()
+
+    from app.schemas.stock import FundamentalsOut
+
+    fundamental_fields = {
+        "pe_ratio": metric.pe_ratio,
+        "market_cap": metric.market_cap,
+        "eps": metric.eps,
+        "dividend_yield": metric.dividend_yield,
+        "book_value": metric.book_value,
+        "revenue_growth_yoy": metric.revenue_growth_yoy,
+        "profit_growth_yoy": metric.profit_growth_yoy,
+        "roe": metric.roe,
+        "roce": metric.roce,
+        "debt_to_equity": metric.debt_to_equity,
+    }
+    out = FundamentalsOut(
+        symbol=stock.symbol, data_source=metric.source.value, as_of=metric.date,
+        retrieved_at=metric.retrieved_at,
+        availability={name: value is not None for name, value in fundamental_fields.items()},
+        **fundamental_fields,
+    )
+    assert out.availability["roce"] is False
+    assert out.availability["pe_ratio"] is True

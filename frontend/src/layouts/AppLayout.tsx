@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/discover', label: 'Discover', icon: DiscoverIcon },
   { to: '/intelligence', label: 'Portfolio Intelligence', icon: IntelligenceIcon },
   { to: '/portfolio/lab', label: 'Portfolio Lab', icon: LabIcon },
+  { to: '/assistant', label: 'AI Assistant', icon: AssistantIcon },
 ];
 
 export function AppLayout() {
@@ -231,6 +232,13 @@ function LabIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...iconBase(props)}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v7.5L4.5 18a1.5 1.5 0 001.3 2.25h12.4a1.5 1.5 0 001.3-2.25L15 10.5V3M9 3h6M9 14h6" />
+    </svg>
+  );
+}
+function AssistantIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...iconBase(props)}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M21 12c0 4.97-4.03 9-9 9a9 9 0 01-4-.92L3 21l1.1-3.3A9 9 0 1121 12z" />
     </svg>
   );
 }

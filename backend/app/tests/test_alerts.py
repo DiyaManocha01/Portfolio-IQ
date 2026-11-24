@@ -114,6 +114,105 @@ def test_daily_type_fires_at_most_once_per_day(db_session):
     assert second is None  # same day -- already fired
 
 
+# ---- Real-data upgrade Phase G: EARNINGS_ANNOUNCEMENT / PORTFOLIO_DRAWDOWN ----
+
+
+def test_earnings_announcement_fires_within_threshold_days(db_session):
+    from app.services.market_data.service import MarketDataService as MDS
+
+    # TCS's synthetic earnings calendar always has an event within the
+    # next ~90 days of "today" (see providers.py's DevSampleProvider --
+    # quarterly, anchored within 0-44 days of today). A large threshold
+    # (120 days) guarantees the nearest one is always "due soon enough."
+    rule = _make_rule(
+        db_session,
+        rule_type=AlertRuleType.EARNINGS_ANNOUNCEMENT,
+        direction=None,
+        threshold=120.0,
+    )
+    evaluate_rule(db_session, rule)  # baseline (first evaluation never fires)
+    rule.last_fired_at = None
+    db_session.commit()
+    event = evaluate_rule(db_session, rule)
+    assert event is not None
+    assert "earnings announcement" in event.message.lower()
+
+    # Confirm the days-until figure is a real, reproducible number from
+    # get_corporate_events, not something the evaluator invented:
+    from app.models.corporate_event import CorporateEventType
+
+    stock = MDS(db_session).get_or_create_stock("TCS")
+    events = MDS(db_session).get_corporate_events(stock)
+    upcoming = sorted(
+        (e for e in events if e.event_type == CorporateEventType.EARNINGS and e.event_date >= dt.date.today()),
+        key=lambda e: e.event_date,
+    )
+    expected_days = (upcoming[0].event_date - dt.date.today()).days
+    assert event.value == float(expected_days)
+
+
+def test_earnings_announcement_does_not_fire_beyond_threshold(db_session):
+    rule = _make_rule(
+        db_session,
+        rule_type=AlertRuleType.EARNINGS_ANNOUNCEMENT,
+        direction=None,
+        threshold=0.0,  # nothing is ever "due in 0 days or fewer" for a future event
+    )
+    evaluate_rule(db_session, rule)  # baseline
+    rule.last_fired_at = None
+    db_session.commit()
+    event = evaluate_rule(db_session, rule)
+    assert event is None
+
+
+def test_earnings_announcement_fires_at_most_once_per_day(db_session):
+    rule = _make_rule(
+        db_session,
+        rule_type=AlertRuleType.EARNINGS_ANNOUNCEMENT,
+        direction=None,
+        threshold=120.0,
+    )
+    evaluate_rule(db_session, rule)
+    rule.last_fired_at = dt.datetime.now(tz=dt.timezone.utc) - dt.timedelta(seconds=120)
+    db_session.commit()
+    second = evaluate_rule(db_session, rule)
+    assert second is None  # already fired today (simulated), cooldown-independent
+
+
+def test_portfolio_drawdown_crosses_above_threshold(db_session):
+    rule = _make_rule(
+        db_session,
+        rule_type=AlertRuleType.PORTFOLIO_DRAWDOWN,
+        stock_id=None,
+        direction=None,
+        threshold=0.01,  # effectively any real drawdown clears this
+    )
+    evaluate_rule(db_session, rule)  # baseline
+    rule.last_value = 0.0  # force "previously below threshold"
+    rule.last_fired_at = None
+    db_session.commit()
+    event = evaluate_rule(db_session, rule)
+    assert event is not None
+    assert "drawdown" in event.message.lower()
+    assert event.value >= 0  # reported as a positive magnitude, not risk_service's own negative fraction
+
+
+def test_portfolio_drawdown_does_not_refire_while_still_above(db_session):
+    rule = _make_rule(
+        db_session,
+        rule_type=AlertRuleType.PORTFOLIO_DRAWDOWN,
+        stock_id=None,
+        direction=None,
+        threshold=0.01,
+    )
+    evaluate_rule(db_session, rule)
+    rule.last_value = 50.0  # force "already above threshold" (not a fresh crossing)
+    rule.last_fired_at = None
+    db_session.commit()
+    event = evaluate_rule(db_session, rule)
+    assert event is None
+
+
 def test_portfolio_level_rule_with_no_holdings_returns_none(db_session):
     from app.models.portfolio import Portfolio
     from app.models.user import User as UserModel

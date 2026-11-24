@@ -688,7 +688,10 @@ export type AlertRuleType =
   | 'SENTIMENT_CHANGE'
   | 'PORTFOLIO_VOLATILITY_CHANGE'
   | 'SECTOR_CONCENTRATION_CHANGE'
-  | 'FIT_RANKING_CHANGE';
+  | 'FIT_RANKING_CHANGE'
+  // real-data upgrade Phase G
+  | 'EARNINGS_ANNOUNCEMENT'
+  | 'PORTFOLIO_DRAWDOWN';
 
 export type AlertDirection = 'ABOVE' | 'BELOW';
 
@@ -783,5 +786,16 @@ export interface PaperPerformanceOut {
   account_return_pct: number;
   benchmark_return_pct: number;
   data_source: 'DEV_SAMPLE' | 'LIVE';
+  disclaimer: string;
+}
+
+// --- Phase 19/32: AI Portfolio Assistant (frontend added real-data upgrade Phase H) ---
+
+export interface AssistantAnswer {
+  answer: string;
+  sources_used: string[];
+  guardrail_tripped: boolean;
+  guardrail_matched_phrase: string | null;
+  model: string;
   disclaimer: string;
 }

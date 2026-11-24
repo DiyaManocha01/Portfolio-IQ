@@ -1,3 +1,5 @@
+from datetime import date
+
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -7,6 +9,8 @@ from app.ml.predict import ModelNotTrainedError, PredictionService
 from app.models.stock import Stock
 from app.schemas.stock import (
     AnalysisPoint,
+    CorporateEventOut,
+    CorporateEventsOut,
     FundamentalsOut,
     NewsItemOut,
     OHLCVPoint,
@@ -167,10 +171,24 @@ def get_stock_fundamentals(symbol: str, db: Session = Depends(get_db)):
     stock = _get_stock_or_404(symbol, db)
     market_data = MarketDataService(db)
     metric = market_data.get_fundamentals(stock)
+    fundamental_fields = {
+        "pe_ratio": metric.pe_ratio,
+        "market_cap": metric.market_cap,
+        "eps": metric.eps,
+        "dividend_yield": metric.dividend_yield,
+        "book_value": metric.book_value,
+        "revenue_growth_yoy": metric.revenue_growth_yoy,
+        "profit_growth_yoy": metric.profit_growth_yoy,
+        "roe": metric.roe,
+        "roce": metric.roce,
+        "debt_to_equity": metric.debt_to_equity,
+    }
     return FundamentalsOut(
         symbol=stock.symbol,
         data_source=metric.source.value,
         as_of=metric.date,
+        retrieved_at=metric.retrieved_at,
+        availability={name: value is not None for name, value in fundamental_fields.items()},
         pe_ratio=metric.pe_ratio,
         market_cap=metric.market_cap,
         eps=metric.eps,
@@ -181,6 +199,32 @@ def get_stock_fundamentals(symbol: str, db: Session = Depends(get_db)):
         roe=metric.roe,
         roce=metric.roce,
         debt_to_equity=metric.debt_to_equity,
+    )
+
+
+@router.get("/{symbol}/events", response_model=CorporateEventsOut)
+def get_stock_events(symbol: str, db: Session = Depends(get_db)):
+    """Real-data upgrade Phase G: earnings/dividend/split/bonus/buyback/
+    announcement events. Does not require auth (same reasoning as every
+    other /stocks/* route -- not user-scoped data).
+    """
+    stock = _get_stock_or_404(symbol, db)
+    market_data = MarketDataService(db)
+    events = market_data.get_corporate_events(stock)
+    today = date.today()
+    return CorporateEventsOut(
+        symbol=stock.symbol,
+        events=[
+            CorporateEventOut(
+                event_type=e.event_type.value,
+                event_date=e.event_date,
+                description=e.description,
+                is_upcoming=e.event_date >= today,
+                source=e.source.value,
+            )
+            for e in events
+        ],
+        data_source=market_data.data_source_label,
     )
 
 

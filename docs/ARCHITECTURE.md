@@ -36,7 +36,7 @@ backend/
     api/
       deps.py              # auth deps (get_current_user, get_current_portfolio)
       routes/               # auth, portfolio, stocks, discover, portfolio_fit, ledger, assistant, market, health
-    models/                 # SQLAlchemy ORM models (14 tables, see below)
+    models/                 # SQLAlchemy ORM models (21 tables, see below), incl. corporate_event.py (real-data upgrade Phase G)
     schemas/                # Pydantic request/response models
     services/
       security.py           # password hashing + JWT (PyJWT, Phase 21)
@@ -109,7 +109,7 @@ backend/
   docker-entrypoint.sh         # migrate -> seed/train (once) -> uvicorn (Phase 22)
 ```
 
-## Database schema (20 tables)
+## Database schema (21 tables)
 
 `users` -> `user_profiles` (1:1), `users` -> `portfolios` (1:many) ->
 `holdings` / `transactions` / `portfolio_scores`. `transactions` gained a
@@ -135,6 +135,12 @@ never updated. `intraday_candles` is a separate table from `market_data`
 results keyed by `(portfolio_id, stock_id, preset)`, written once per
 recompute and never updated -- this is what lets a later request
 explain how a score changed, not just what it is now. See ADR 0012.
+`stocks` -> `corporate_events` (1:many, real-data upgrade Phase G) --
+earnings/dividend/split/bonus/buyback/announcement rows, deduped on
+`(stock_id, event_type, event_date)`, refetched from the provider at most
+once per 24 hours. `financial_metrics` gained a `retrieved_at` column the
+same phase (the real-call timestamp backing `FundamentalsOut`'s
+`retrieved_at`/`availability` fields).
 
 See `backend/app/models/*.py` for exact columns; relationships use
 SQLAlchemy 2.0 typed `Mapped[...]` declarations with cascading deletes.
@@ -147,14 +153,14 @@ Schema changes go through Alembic (`backend/alembic/`) as of Phase 4 —
 |---|---|---|---|
 | `auth.py` | `/auth` | mixed | register/login rate-limited (Phase 21) |
 | `portfolio.py` | `/portfolio` | required | holdings (+ sell/transactions, Phase 31), risk, health, optimize, what-if, stress-test, risk-attribution, advanced performance (Phase 31) |
-| `stocks.py` | `/stocks` | **none** | quote, history, analysis, prediction (+SHAP), news, sentiment, fundamentals (Phase 26) -- not user-scoped data, so never required `get_current_user`; this table previously (incorrectly) said "required" here, corrected in Phase 26, see ADR 0009 |
+| `stocks.py` | `/stocks` | **none** | quote, history, analysis, prediction (+SHAP), news, sentiment, fundamentals (Phase 26; retrieval metadata + events added real-data upgrade Phase G) -- not user-scoped data, so never required `get_current_user`; this table previously (incorrectly) said "required" here, corrected in Phase 26, see ADR 0009 |
 | `discover.py` | `/discover` | required | personalized candidate ranking (via `get_current_portfolio`, which itself requires auth) |
 | `portfolio_fit.py` | `/portfolio-fit` | required | fit breakdown, compare, counterfactual (same `get_current_portfolio` path) |
 | `ledger.py` | `/ledger` | **none** | the one deliberately public surface (Phase 18) |
 | `assistant.py` | `/assistant` | required | rate-limited (Phase 21) |
 | `market.py` | `/market`, `/ws/market` | required (JWT as `?token=` on the WS) | status poll, intraday candles, push feed (Phase 24/25) |
 | `screener.py` | `/screener` | **none** | fundamental + technical stock screener (Phase 26) |
-| `alerts.py` | `/alerts` | required | configurable alert rules + triggered events, user-scoped (Phase 27) |
+| `alerts.py` | `/alerts` | required | configurable alert rules + triggered events, user-scoped (Phase 27; `EARNINGS_ANNOUNCEMENT`/`PORTFOLIO_DRAWDOWN` types added real-data upgrade Phase G) |
 | `paper_trading.py` | `/paper-trading` | required | hypothetical account: buy/sell, holdings, transactions, performance (Phase 28) |
 
 Full request/response shapes: `API_CONTRACT.md`.
@@ -166,7 +172,8 @@ can be dropped in without touching calling code:
 
 1. **Market data** (`app/services/market_data/providers.py`):
    `MarketDataProvider` is an ABC with `get_history`/`get_quote`/
-   `get_fundamentals` (Phase 26). `DevSampleProvider` (default) generates
+   `get_fundamentals` (Phase 26)/`get_corporate_events` (real-data upgrade
+   Phase G). `DevSampleProvider` (default) generates
    deterministic, seeded synthetic OHLCV and fundamentals data with a
    shared market factor for realistic cross-stock correlation, tagged
    `DataSource.DEV_SAMPLE`. `LiveYFinanceProvider` is a real implementation
@@ -286,7 +293,9 @@ frontend/src/
                  #   Discover, Intelligence (risk + risk attribution
                  #   + Advanced Performance section, Phase 31),
                  #   PortfolioFit (+ compare/counterfactual, Phase 20),
-                 #   PortfolioLab (What-If + Optimization tabs, Phase 20)
+                 #   PortfolioLab (What-If + Optimization tabs, Phase 20),
+                 #   Assistant (chat UI over POST /assistant/ask, local-only
+                 #   message history, real-data upgrade Phase H)
   layouts/       # app shell (sidebar + top nav + protected-route wrapper)
   services/      # axios client + one module per API resource
   hooks/         # data-fetching hooks: useAsync (fetch-once), useMarketFeed
@@ -301,9 +310,10 @@ frontend/src/
   test/          # Vitest setup (Phase 21)
 ```
 
-66 Vitest + React Testing Library tests cover `utils/format.ts`,
+77 Vitest + React Testing Library tests cover `utils/format.ts`,
 `useMarketFeed`, and smoke-level rendering (loading/error/data states,
-form submission) of the Phase 20, 25, 26, 27, 28, 29, 30, and 31 UI.
+form submission) of the Phase 20, 25, 26, 27, 28, 29, 30, 31, and
+real-data-upgrade Phase H UI.
 
 ## Security (Phase 21)
 

@@ -17,6 +17,8 @@ const RULE_TYPE_META: Record<AlertRuleType, { label: string; needsSymbol: boolea
   PORTFOLIO_VOLATILITY_CHANGE: { label: 'Portfolio Volatility Change', needsSymbol: false, needsDirection: false, thresholdLabel: 'Change (percentage points)' },
   SECTOR_CONCENTRATION_CHANGE: { label: 'Sector Concentration Change', needsSymbol: false, needsDirection: false, thresholdLabel: 'Change (percentage points)' },
   FIT_RANKING_CHANGE: { label: 'Portfolio Fit Score Change', needsSymbol: true, needsDirection: false, thresholdLabel: 'Fit Score Points' },
+  EARNINGS_ANNOUNCEMENT: { label: 'Earnings Announcement', needsSymbol: true, needsDirection: false, thresholdLabel: 'Days Until (fires when due within)' },
+  PORTFOLIO_DRAWDOWN: { label: 'Portfolio Drawdown', needsSymbol: false, needsDirection: false, thresholdLabel: 'Drawdown % (from peak)' },
 };
 
 const RULE_TYPES = Object.keys(RULE_TYPE_META) as AlertRuleType[];

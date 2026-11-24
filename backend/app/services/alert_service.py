@@ -139,6 +139,44 @@ def _eval_sector_concentration_change(db: Session, rule: AlertRule) -> tuple[flo
     return current, message
 
 
+def _eval_earnings_announcement(db: Session, rule: AlertRule) -> tuple[float, str] | None:
+    """Real-data upgrade Phase G. Returns days-until-the-nearest-upcoming-
+    EARNINGS-event as the metric -- smaller is more urgent, the opposite
+    sense from every other evaluator here, so it gets its own dedup
+    bucket in `_should_fire` rather than reusing the magnitude-exceeded
+    convention the other types share."""
+    from app.models.corporate_event import CorporateEventType
+
+    market_data = MarketDataService(db)
+    events = market_data.get_corporate_events(rule.stock)
+    today = dt.date.today()
+    upcoming = sorted(
+        (e for e in events if e.event_type == CorporateEventType.EARNINGS and e.event_date >= today),
+        key=lambda e: e.event_date,
+    )
+    if not upcoming:
+        return None
+    nearest = upcoming[0]
+    days_until = (nearest.event_date - today).days
+    message = f"{rule.stock.symbol} has an earnings announcement in {days_until} day(s) ({nearest.event_date.isoformat()})"
+    return float(days_until), message
+
+
+def _eval_portfolio_drawdown(db: Session, rule: AlertRule) -> tuple[float, str] | None:
+    """Real-data upgrade Phase G. Reports drawdown as a positive magnitude
+    (risk_service's own max_drawdown is reported as a negative fraction)
+    -- a portfolio-level, non-directional "has it gotten this bad" alert."""
+    from app.portfolio.risk_service import PortfolioRiskService
+
+    portfolio = _get_user_portfolio(db, rule.user_id)
+    if portfolio is None or not list(portfolio.holdings):
+        return None
+    result = PortfolioRiskService(db).compute(portfolio)
+    current = abs(result["max_drawdown"]) * 100
+    message = f"Portfolio drawdown reached {current:.2f}% from its running peak (threshold: {rule.threshold:.2f}%)"
+    return current, message
+
+
 def _eval_fit_ranking_change(db: Session, rule: AlertRule) -> tuple[float, str] | None:
     from app.portfolio.fit_service import default_preset_for
     from app.portfolio.fit_snapshot_service import get_fit_with_change
@@ -166,10 +204,24 @@ _EVALUATORS = {
     AlertRuleType.PORTFOLIO_VOLATILITY_CHANGE: _eval_portfolio_volatility_change,
     AlertRuleType.SECTOR_CONCENTRATION_CHANGE: _eval_sector_concentration_change,
     AlertRuleType.FIT_RANKING_CHANGE: _eval_fit_ranking_change,
+    AlertRuleType.EARNINGS_ANNOUNCEMENT: _eval_earnings_announcement,
+    AlertRuleType.PORTFOLIO_DRAWDOWN: _eval_portfolio_drawdown,
 }
 
 _CROSSING_TYPES = {AlertRuleType.PRICE_THRESHOLD, AlertRuleType.RSI_THRESHOLD}
 _DAILY_TYPES = {AlertRuleType.PRICE_PCT_MOVE, AlertRuleType.VOLUME_SPIKE}
+# Real-data upgrade Phase G: "fire once per day while the condition holds"
+# but on the OPPOSITE sense from _DAILY_TYPES (days_until <= threshold is
+# urgent, not >= threshold) -- kept as its own bucket rather than negating
+# the value and reusing _DAILY_TYPES, so the sign convention stays obvious
+# at the call site (_eval_earnings_announcement returns a plain days-count).
+_DAYS_UNTIL_TYPES = {AlertRuleType.EARNINGS_ANNOUNCEMENT}
+# Magnitude-crossing, direction-free: fires once when the value crosses
+# from below the threshold to at-or-above it (drawdown only ever worsens
+# downward, so there's no ABOVE/BELOW choice to make the way
+# PRICE_THRESHOLD/RSI_THRESHOLD have -- see schemas/alert.py's validator,
+# which rejects a direction for this type for the same reason).
+_MAGNITUDE_CROSSING_TYPES = {AlertRuleType.PORTFOLIO_DRAWDOWN}
 
 
 def _crossed(previous: float, current: float, threshold: float, direction: AlertDirection) -> bool:
@@ -192,6 +244,14 @@ def _should_fire(rule: AlertRule, current_value: float, now: dt.datetime) -> boo
         if abs(current_value) < rule.threshold:
             return False
         return rule.last_fired_at is None or rule.last_fired_at.date() != now.date()
+
+    if rule.rule_type in _DAYS_UNTIL_TYPES:
+        if current_value > rule.threshold:
+            return False  # earnings is further out than the user cares about yet
+        return rule.last_fired_at is None or rule.last_fired_at.date() != now.date()
+
+    if rule.rule_type in _MAGNITUDE_CROSSING_TYPES:
+        return rule.last_value < rule.threshold <= current_value
 
     # "change since last check" types: fire once a full threshold-sized
     # step has accumulated since the value last fired on (or since the
@@ -231,7 +291,14 @@ def evaluate_rule(db: Session, rule: AlertRule) -> AlertEvent | None:
     # the very first evaluation) -- otherwise comparing against the
     # immediately-prior tick would hide a genuine slow drift that never
     # crosses the threshold in any single evaluation interval.
-    if rule.rule_type in _CROSSING_TYPES or rule.rule_type in _DAILY_TYPES or rule.last_value is None or fire:
+    if (
+        rule.rule_type in _CROSSING_TYPES
+        or rule.rule_type in _DAILY_TYPES
+        or rule.rule_type in _DAYS_UNTIL_TYPES
+        or rule.rule_type in _MAGNITUDE_CROSSING_TYPES
+        or rule.last_value is None
+        or fire
+    ):
         rule.last_value = current_value
     rule.last_evaluated_at = now
     db.commit()

@@ -8,6 +8,7 @@ from app.models.intraday_candle import IntradayCandle, CandleStatus
 from app.models.alert import AlertRule, AlertRuleType, AlertDirection, AlertEvent
 from app.models.paper_trading import PaperAccount, PaperHolding, PaperTransaction
 from app.models.fit_snapshot import FitScoreSnapshot
+from app.models.corporate_event import CorporateEvent, CorporateEventType
 
 __all__ = [
     "User",
@@ -40,4 +41,6 @@ __all__ = [
     "PaperHolding",
     "PaperTransaction",
     "FitScoreSnapshot",
+    "CorporateEvent",
+    "CorporateEventType",
 ]

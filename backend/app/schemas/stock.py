@@ -130,6 +130,17 @@ class FundamentalsOut(BaseModel):
     symbol: str
     data_source: str
     as_of: date
+    # Real-data upgrade Phase G: a genuine retrieval timestamp (distinct
+    # from `as_of`, which is the calendar day this row is cached under),
+    # and an explicit per-field availability map (`true` = this call
+    # returned a real, non-null value; `false` = genuinely missing from
+    # the source, same meaning the disclaimer below already states, just
+    # now also machine-readable). There is no per-field "reporting
+    # period" here -- every field in a row comes from one single provider
+    # call at `retrieved_at`, so there is nothing to distinguish between
+    # fields on that point; see docs/limitations.md.
+    retrieved_at: datetime
+    availability: dict[str, bool]
     pe_ratio: float | None
     market_cap: float | None
     eps: float | None
@@ -159,4 +170,23 @@ class StockAnalysis(BaseModel):
     series: list[AnalysisPoint]
     disclaimer: str = (
         "Historical analysis only. Not a prediction, recommendation, or guarantee of future performance."
+    )
+
+
+class CorporateEventOut(BaseModel):
+    event_type: str
+    event_date: date
+    description: str
+    is_upcoming: bool
+    source: str
+
+
+class CorporateEventsOut(BaseModel):
+    symbol: str
+    events: list[CorporateEventOut]
+    data_source: str
+    disclaimer: str = (
+        "Earnings dates for DEV_SAMPLE data are synthetic estimates, not real "
+        "company filings -- see docs/limitations.md. Dividend/split events are "
+        "only ever real data (LIVE) or absent, never synthesized."
     )

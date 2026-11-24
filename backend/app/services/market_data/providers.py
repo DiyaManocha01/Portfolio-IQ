@@ -154,6 +154,17 @@ class OHLCVBar:
 
 
 @dataclass
+class CorporateEventData:
+    """One corporate event as a provider returns it -- ``event_type``
+    matches app.models.corporate_event.CorporateEventType's string values.
+    Real-data upgrade Phase G."""
+
+    event_type: str
+    event_date: date
+    description: str
+
+
+@dataclass
 class FundamentalSnapshot:
     """A point-in-time fundamentals snapshot (Phase 26).
 
@@ -196,6 +207,10 @@ class MarketDataProvider(ABC):
 
     @abstractmethod
     def get_fundamentals(self, symbol: str) -> FundamentalSnapshot:
+        ...
+
+    @abstractmethod
+    def get_corporate_events(self, symbol: str) -> list[CorporateEventData]:
         ...
 
 
@@ -312,6 +327,34 @@ class DevSampleProvider(MarketDataProvider):
             debt_to_equity=round(rng.uniform(0.0, 80.0), 2),
         )
 
+    def get_corporate_events(self, symbol: str) -> list[CorporateEventData]:
+        """Deterministic synthetic EARNINGS dates only, seeded by symbol --
+        quarterly, spanning roughly 2 years back and 2 quarters ahead of
+        today. Dividend/split/bonus/buyback events are deliberately NOT
+        synthesized: a report DATE is a structural calendar fact
+        (companies report roughly quarterly, same reasoning as the
+        synthetic OHLCV random walk needing no real price to anchor its
+        shape), but a dividend amount or split ratio would be a genuinely
+        invented number this project has no basis for -- see
+        docs/limitations.md.
+        """
+        rng = random.Random(self._seed_for(symbol) + 2)  # offset so this doesn't reuse get_history/get_fundamentals draws
+        today = date.today()
+        offset_days = rng.randint(0, 44)
+        anchor = today - timedelta(days=offset_days)
+        events: list[CorporateEventData] = []
+        for i in range(-8, 3):  # 8 quarters back, 2 ahead -- bounded, not unbounded
+            event_date = anchor + timedelta(days=91 * i)
+            quarter = ((event_date.month - 1) // 3) + 1
+            events.append(
+                CorporateEventData(
+                    event_type="EARNINGS",
+                    event_date=event_date,
+                    description=f"Q{quarter} FY{event_date.year} results (synthetic estimate)",
+                )
+            )
+        return sorted(events, key=lambda e: e.event_date)
+
 
 class LiveYFinanceProvider(MarketDataProvider):
     """Real market-data provider backed by Yahoo Finance via yfinance.
@@ -421,6 +464,71 @@ class LiveYFinanceProvider(MarketDataProvider):
             roce=None,  # no yfinance equivalent -- never fabricated
             debt_to_equity=info.get("debtToEquity"),
         )
+
+    def get_corporate_events(self, symbol: str) -> list[CorporateEventData]:
+        """Real dividends/splits (historical) and the next earnings date,
+        via yfinance's ``Ticker.dividends``/``Ticker.splits``/``Ticker.calendar``.
+
+        HONESTY NOTE: like every other yfinance-backed method in this
+        class, this has NEVER been executed against live Yahoo Finance
+        from any sandbox session in this project's history (network
+        blocked, verified repeatedly) -- built from documented yfinance
+        API shape, not a confirmed response. ``Ticker.calendar``'s exact
+        return shape has changed across yfinance versions; this reads it
+        defensively (several known key spellings) and returns no
+        EARNINGS event rather than guessing if none of them match.
+        """
+        import yfinance as yf  # local import: optional dependency
+
+        yf_symbol = symbol if symbol.startswith("^") else f"{symbol}.NS"
+        ticker = yf.Ticker(yf_symbol)
+        events: list[CorporateEventData] = []
+
+        try:
+            for event_date, amount in ticker.dividends.items():
+                events.append(
+                    CorporateEventData(
+                        event_type="DIVIDEND",
+                        event_date=event_date.date(),
+                        description=f"Dividend of {float(amount):.2f} per share",
+                    )
+                )
+        except Exception:  # noqa: BLE001 -- a field this provider can't supply is None/empty, never guessed
+            pass
+
+        try:
+            for event_date, ratio in ticker.splits.items():
+                events.append(
+                    CorporateEventData(
+                        event_type="SPLIT",
+                        event_date=event_date.date(),
+                        description=f"Stock split, ratio {float(ratio):.4f}",
+                    )
+                )
+        except Exception:  # noqa: BLE001
+            pass
+
+        try:
+            calendar = ticker.calendar
+            raw_dates = None
+            if isinstance(calendar, dict):
+                raw_dates = calendar.get("Earnings Date") or calendar.get("earningsDate")
+            elif calendar is not None and hasattr(calendar, "get"):
+                raw_dates = calendar.get("Earnings Date")
+            if raw_dates:
+                for d in raw_dates if isinstance(raw_dates, (list, tuple)) else [raw_dates]:
+                    event_date = d.date() if hasattr(d, "date") else d
+                    events.append(
+                        CorporateEventData(
+                            event_type="EARNINGS",
+                            event_date=event_date,
+                            description="Upcoming earnings announcement",
+                        )
+                    )
+        except Exception:  # noqa: BLE001
+            pass
+
+        return sorted(events, key=lambda e: e.event_date)
 
 
 def get_provider(use_live: bool) -> MarketDataProvider:

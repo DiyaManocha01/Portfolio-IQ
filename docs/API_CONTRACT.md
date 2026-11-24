@@ -440,10 +440,16 @@ returned so neither silently replaces the other. News source is
 headlines when `USE_LIVE_NEWS=true` and a local cache exists (see
 `docs/methodology.md` Section 4).
 
-### GET /stocks/{symbol}/fundamentals (Phase 26)
+### GET /stocks/{symbol}/fundamentals (Phase 26; `retrieved_at`/`availability` added real-data upgrade Phase G)
 ```json
 {
   "symbol": "TCS", "data_source": "DEV_SAMPLE", "as_of": "2026-11-11",
+  "retrieved_at": "2026-11-11T09:32:04.123Z",
+  "availability": {
+    "pe_ratio": true, "market_cap": true, "eps": true, "dividend_yield": true,
+    "book_value": true, "revenue_growth_yoy": true, "profit_growth_yoy": true,
+    "roe": true, "roce": false, "debt_to_equity": true
+  },
   "pe_ratio": 25.81, "market_cap": 8113187789344.73, "eps": 133.67,
   "dividend_yield": 2.47, "book_value": 969.59,
   "revenue_growth_yoy": 0.2076, "profit_growth_yoy": 0.2744,
@@ -455,9 +461,35 @@ Cached per (stock, day) -- fundamentals don't change intraday. `roce` is
 **always null** when `data_source` is `LIVE` (no yfinance equivalent);
 only `DEV_SAMPLE` populates it. `debt_to_equity`'s scale is whatever the
 underlying source uses verbatim, unconverted -- see
-`docs/limitations.md` before assuming a 0-1 ratio vs. a percent. This
-endpoint does **not** require auth (same as every other `/stocks/*`
-route -- stock data isn't user-scoped).
+`docs/limitations.md` before assuming a 0-1 ratio vs. a percent.
+`retrieved_at` is when this row's single provider call happened (not a
+per-field timestamp -- every field in a row comes from the same call).
+`availability` is a machine-readable mirror of the same "is this field
+genuinely missing from the source" fact the disclaimer already states in
+prose. This endpoint does **not** require auth (same as every other
+`/stocks/*` route -- stock data isn't user-scoped).
+
+### GET /stocks/{symbol}/events (real-data upgrade Phase G, no auth -- same reasoning as `/stocks/*`)
+```json
+{
+  "symbol": "TCS",
+  "events": [
+    {
+      "event_type": "EARNINGS", "event_date": "2027-02-14",
+      "description": "Q4 FY2027 results (synthetic estimate)",
+      "is_upcoming": true, "source": "DEV_SAMPLE"
+    }
+  ],
+  "data_source": "DEV_SAMPLE",
+  "disclaimer": "Earnings dates for DEV_SAMPLE data are synthetic estimates, not real company filings -- see docs/limitations.md. Dividend/split events are only ever real data (LIVE) or absent, never synthesized."
+}
+```
+`event_type` is one of `EARNINGS`/`DIVIDEND`/`SPLIT`/`BONUS`/`BUYBACK`/
+`ANNOUNCEMENT`. Persisted and deduped server-side on
+`(stock_id, event_type, event_date)`; re-fetched from the provider at
+most once per 24 hours per stock. `DEV_SAMPLE` only ever produces
+`EARNINGS` rows (a synthetic quarterly calendar) -- see
+`docs/limitations.md` for why the other types are never fabricated.
 
 ---
 
@@ -841,11 +873,18 @@ response -- see `docs/limitations.md` before citing a live NIFTY IT number.
 ```
 `symbol` is required for stock-scoped types (`PRICE_THRESHOLD`,
 `PRICE_PCT_MOVE`, `VOLUME_SPIKE`, `RSI_THRESHOLD`, `SENTIMENT_CHANGE`,
-`FIT_RANKING_CHANGE`) and rejected (422) for portfolio-level types
-(`PORTFOLIO_VOLATILITY_CHANGE`, `SECTOR_CONCENTRATION_CHANGE`).
-`direction` (`ABOVE`/`BELOW`) is required for `PRICE_THRESHOLD` and
-`RSI_THRESHOLD` only, and rejected (422) for every other type, whose
-`threshold` is a magnitude, not a side. Returns `201` with:
+`FIT_RANKING_CHANGE`, `EARNINGS_ANNOUNCEMENT` -- added real-data upgrade
+Phase G) and rejected (422) for portfolio-level types
+(`PORTFOLIO_VOLATILITY_CHANGE`, `SECTOR_CONCENTRATION_CHANGE`,
+`PORTFOLIO_DRAWDOWN` -- added Phase G). `direction` (`ABOVE`/`BELOW`) is
+required for `PRICE_THRESHOLD` and `RSI_THRESHOLD` only, and rejected
+(422) for every other type, whose `threshold` is a magnitude, not a side.
+`EARNINGS_ANNOUNCEMENT`'s `threshold` is a number of days (fires at most
+once/day while the stock's nearest upcoming earnings date is `<=
+threshold` days away); `PORTFOLIO_DRAWDOWN`'s `threshold` is a drawdown
+percentage magnitude (fires once when the portfolio's max-drawdown-from-
+peak crosses above it, direction-free since drawdown only ever "crosses"
+in the worsening direction). Returns `201` with:
 ```json
 {
   "id": 1, "rule_type": "PRICE_THRESHOLD", "symbol": "RELIANCE", "direction": "ABOVE",

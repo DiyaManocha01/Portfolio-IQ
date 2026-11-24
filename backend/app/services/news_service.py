@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import random
+import re
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -52,6 +53,46 @@ SOURCES = ["Economic Times", "Moneycontrol", "Business Standard", "LiveMint", "R
 # fluctuations don't whipsaw it. Revisit once real headline volume/cadence
 # (Phase 7's RSS ingestion) gives a basis to tune this empirically.
 SENTIMENT_HALF_LIFE_DAYS = 7.0
+
+# Real-data upgrade Phase H: cross-source near-duplicate detection.
+# ingest_live_news's pre-existing dedup only catches an *exact*
+# (headline, published_at) repeat (e.g. re-running the same RSS fetch).
+# The same real story picked up from two different RSS sources (Economic
+# Times vs. Moneycontrol) typically has slightly different headline
+# wording and a different timestamp, so it passes that check and would
+# otherwise be stored twice. A Jaccard-similarity check over normalized
+# word sets, scoped to a nearby time window, catches that case. The
+# threshold is a reasonable documented default, not tuned against any
+# labeled duplicate-headline dataset -- none exists for this project, see
+# docs/limitations.md.
+NEAR_DUPLICATE_JACCARD_THRESHOLD = 0.6
+NEAR_DUPLICATE_WINDOW_HOURS = 48.0
+_WORD_RE = re.compile(r"[a-z0-9]+")
+
+
+def _headline_words(headline: str) -> set[str]:
+    return set(_WORD_RE.findall(headline.lower()))
+
+
+def _is_near_duplicate(
+    published_at: datetime,
+    words: set[str],
+    candidates: list[tuple[datetime, set[str]]],
+    threshold: float = NEAR_DUPLICATE_JACCARD_THRESHOLD,
+    window_hours: float = NEAR_DUPLICATE_WINDOW_HOURS,
+) -> bool:
+    if not words:
+        return False
+    for other_published_at, other_words in candidates:
+        if not other_words:
+            continue
+        if abs((published_at - other_published_at).total_seconds()) > window_hours * 3600:
+            continue
+        intersection = len(words & other_words)
+        union = len(words | other_words)
+        if union and intersection / union >= threshold:
+            return True
+    return False
 
 
 def _time_decayed_average(news_items: list["News"], half_life_days: float = SENTIMENT_HALF_LIFE_DAYS) -> float | None:
@@ -129,22 +170,30 @@ class NewsService:
         cache (app/services/news/cache.py) into the News/NewsSentiment
         tables, tagged DataSource.LIVE. Idempotent: re-running does not
         duplicate a headline already stored (matched by headline text +
-        published_at). Does nothing if no real cache entry exists for this
-        symbol -- callers decide whether to fall back to synthetic data.
+        published_at), and also skips a near-duplicate of the same real
+        story picked up from a different source with slightly different
+        wording/timestamp (see `_is_near_duplicate`). Does nothing if no
+        real cache entry exists for this symbol -- callers decide whether
+        to fall back to synthetic data.
         """
         cached = rss_cache.read_cache_for_symbol(stock.symbol)
         if not cached:
             return 0
 
-        existing_keys = {
-            (n.headline, n.published_at)
-            for n in self.db.query(News).filter(News.stock_id == stock.id, News.data_source == DataSource.LIVE).all()
-        }
+        existing_live = (
+            self.db.query(News).filter(News.stock_id == stock.id, News.data_source == DataSource.LIVE).all()
+        )
+        existing_keys = {(n.headline, n.published_at) for n in existing_live}
+        near_duplicate_candidates = [(n.published_at, _headline_words(n.headline)) for n in existing_live]
 
         written = 0
         for item in cached:
             published_at = datetime.fromisoformat(item.published_at)
             if (item.headline, published_at) in existing_keys:
+                continue
+
+            words = _headline_words(item.headline)
+            if _is_near_duplicate(published_at, words, near_duplicate_candidates):
                 continue
 
             news = News(
@@ -170,6 +219,7 @@ class NewsService:
                 )
             )
             written += 1
+            near_duplicate_candidates.append((published_at, words))
         self.db.commit()
         return written
 

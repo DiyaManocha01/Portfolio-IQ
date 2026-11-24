@@ -8,8 +8,18 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from app.models.news import News, NewsSentiment, SentimentLabel
+from app.models.stock import DataSource
+from app.services.news import cache as rss_cache
+from app.services.news.cache import CachedHeadline
 from app.services.news.matching import match_symbols
-from app.services.news_service import SENTIMENT_HALF_LIFE_DAYS, _time_decayed_average
+from app.services.news_service import (
+    SENTIMENT_HALF_LIFE_DAYS,
+    NewsService,
+    _headline_words,
+    _is_near_duplicate,
+    _time_decayed_average,
+)
+from app.services.market_data.service import MarketDataService
 
 
 # ---------- matching ----------
@@ -80,3 +90,83 @@ def test_time_decayed_average_none_when_no_sentiment():
 
 def test_time_decayed_average_empty_list():
     assert _time_decayed_average([]) is None
+
+
+# ---------- real-data upgrade Phase H: cross-source near-duplicate detection ----------
+
+
+def test_headline_words_normalizes_case_and_punctuation():
+    assert _headline_words("TCS Shares Surge 5%!") == _headline_words("tcs shares surge 5")
+
+
+def test_is_near_duplicate_true_for_reworded_same_story():
+    now = datetime.now(timezone.utc)
+    words = _headline_words("TCS shares surge after strong quarterly earnings beat estimates")
+    candidates = [(now, _headline_words("TCS shares jump after strong quarterly earnings beat estimates"))]
+    assert _is_near_duplicate(now, words, candidates) is True
+
+
+def test_is_near_duplicate_false_for_unrelated_headline():
+    now = datetime.now(timezone.utc)
+    words = _headline_words("TCS shares surge after strong quarterly earnings beat estimates")
+    candidates = [(now, _headline_words("Local weather forecast predicts heavy rainfall this weekend"))]
+    assert _is_near_duplicate(now, words, candidates) is False
+
+
+def test_is_near_duplicate_false_outside_time_window():
+    base = datetime.now(timezone.utc)
+    words = _headline_words("TCS shares surge after strong quarterly earnings beat estimates")
+    far_away = base - timedelta(hours=72)  # beyond the default 48h window
+    candidates = [(far_away, _headline_words("TCS shares surge after strong quarterly earnings beat estimates"))]
+    assert _is_near_duplicate(base, words, candidates) is False
+
+
+def test_is_near_duplicate_false_for_empty_words():
+    assert _is_near_duplicate(datetime.now(timezone.utc), set(), [(datetime.now(timezone.utc), {"a", "b"})]) is False
+
+
+def _headline(symbol: str, headline: str, source: str, hours_ago: float, summary: str | None = None) -> CachedHeadline:
+    published = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+    return CachedHeadline(symbol=symbol, headline=headline, source=source, url=None, published_at=published.isoformat(), summary=summary)
+
+
+def test_ingest_live_news_skips_cross_source_near_duplicate(db_session, monkeypatch):
+    stock = MarketDataService(db_session).get_or_create_stock("TCS")
+    cached = [
+        _headline("TCS", "TCS shares surge after strong quarterly earnings beat estimates", "Economic Times", hours_ago=2),
+        _headline("TCS", "TCS shares jump after strong quarterly earnings beat estimates", "Moneycontrol", hours_ago=1.5),
+    ]
+    monkeypatch.setattr(rss_cache, "read_cache_for_symbol", lambda symbol: cached)
+
+    written = NewsService(db_session).ingest_live_news(stock)
+    assert written == 1  # the second, near-identical headline was skipped as a duplicate
+
+    stored = db_session.query(News).filter(News.stock_id == stock.id, News.data_source == DataSource.LIVE).all()
+    assert len(stored) == 1
+
+
+def test_ingest_live_news_keeps_genuinely_different_headlines(db_session, monkeypatch):
+    stock = MarketDataService(db_session).get_or_create_stock("INFY")
+    cached = [
+        _headline("INFY", "Infosys wins large new contract, boosting investor confidence", "Economic Times", hours_ago=2),
+        _headline("INFY", "Infosys downgraded by brokerage citing valuation and demand risks", "Moneycontrol", hours_ago=1),
+    ]
+    monkeypatch.setattr(rss_cache, "read_cache_for_symbol", lambda symbol: cached)
+
+    written = NewsService(db_session).ingest_live_news(stock)
+    assert written == 2  # genuinely different stories, both kept
+
+
+def test_ingest_live_news_does_not_reduplicate_against_already_stored_live_news(db_session, monkeypatch):
+    stock = MarketDataService(db_session).get_or_create_stock("WIPRO")
+    first_batch = [
+        _headline("WIPRO", "Wipro shares surge after strong quarterly earnings beat estimates", "Economic Times", hours_ago=2),
+    ]
+    monkeypatch.setattr(rss_cache, "read_cache_for_symbol", lambda symbol: first_batch)
+    assert NewsService(db_session).ingest_live_news(stock) == 1
+
+    second_batch = [
+        _headline("WIPRO", "Wipro shares jump after strong quarterly earnings beat estimates", "Moneycontrol", hours_ago=1),
+    ]
+    monkeypatch.setattr(rss_cache, "read_cache_for_symbol", lambda symbol: second_batch)
+    assert NewsService(db_session).ingest_live_news(stock) == 0  # near-duplicate of the already-stored article

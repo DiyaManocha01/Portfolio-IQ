@@ -144,6 +144,88 @@ UI, the methodology doc, or a future paper, it's listed here.
   from what Phase D already computes, just redisplayed per-holding for a
   heatmap layout.
 
+## Fundamentals Metadata & Corporate Events (real-data upgrade, Phase G)
+
+- **Only `EARNINGS` events are ever synthesized for `DEV_SAMPLE`.**
+  `DevSampleProvider.get_corporate_events()` generates a deterministic
+  quarterly earnings calendar (seeded per symbol, so it's reproducible and
+  differs across symbols) because a calendar *date* is a structural fact
+  with an obvious realistic generator -- the same reasoning behind the
+  existing synthetic OHLCV random walk. `DIVIDEND`/`SPLIT`/`BONUS`/
+  `BUYBACK`/`ANNOUNCEMENT` events are deliberately never synthesized: there
+  is no comparably honest way to invent a specific dividend amount or
+  split ratio (CLAUDE.md rule 5), so those types only ever appear when
+  `LiveYFinanceProvider` returns one, which this sandbox cannot exercise
+  (see the Phase 4/24 limitations above).
+- **`LiveYFinanceProvider.get_corporate_events()`'s use of
+  `Ticker.dividends`/`Ticker.splits`/`Ticker.calendar` is unverified
+  against a real response.** Same constraint as every other yfinance call
+  in this project (`query1.finance.yahoo.com` is blocked here) -- the
+  parsing code is written from the documented/general-knowledge shape of
+  these pandas Series/dict objects, each wrapped in its own try/except so
+  a shape mismatch degrades to "fewer events returned," not a crash, but
+  none of this has been confirmed against live data.
+- **Corporate events refresh at most once per 24 hours per stock**
+  (`MarketDataService.get_corporate_events(refresh_after_hours=24)`), a
+  reasonable default, not tuned against any real data-staleness
+  measurement -- there's no live feed in this sandbox to measure
+  real-world staleness against.
+- **No per-field "reporting period" exists in `FundamentalsOut`.**
+  `retrieved_at` + `availability` (added this phase) are the two fields
+  that are honestly supportable: every value in a `FinancialMetric` row
+  comes from one single provider call at one timestamp, so there is
+  nothing to distinguish between individual fields' own "as of" dates
+  within that row -- a genuine per-field reporting period (e.g. "this EPS
+  is for Q2 FY26, this P/E is trailing-twelve-month as of a different
+  date") is not something yfinance exposes distinctly and was not
+  fabricated to satisfy the brief's request for it.
+- **`EARNINGS_ANNOUNCEMENT` and `PORTFOLIO_DRAWDOWN` alert types inherit
+  Phase 27's "never fired against real data" caveat.** Both evaluate
+  against this sandbox's `DEV_SAMPLE` data (synthetic earnings calendar /
+  synthetic portfolio price history respectively) -- the computations are
+  real, the underlying events they react to are not.
+- **Two more alert dedup semantics, beyond Phase 27's three.**
+  `_DAYS_UNTIL_TYPES` (just `EARNINGS_ANNOUNCEMENT`) fires at most once per
+  day while `days_until <= threshold` -- urgency is *inverted* from
+  `_DAILY_TYPES` (which fires while a magnitude is *above* its threshold,
+  not below). `_MAGNITUDE_CROSSING_TYPES` (just `PORTFOLIO_DRAWDOWN`) fires
+  once on `last_value < threshold <= current_value`, direction-free
+  because a drawdown magnitude only ever has one meaningful "crossing"
+  sense (getting worse), unlike `PRICE_THRESHOLD`/`RSI_THRESHOLD` which
+  need an explicit `AlertDirection` to know which crossing direction
+  matters.
+
+## News Deduplication & AI Assistant Frontend (real-data upgrade, Phase H)
+
+- **The near-duplicate threshold (Jaccard >= 0.6 over normalized word
+  sets, 48-hour window) is a documented, reasonable default, not tuned
+  against any labeled duplicate-headline dataset.** None exists for this
+  project -- the same caveat as Phase 7's headline-matching and the
+  FinBERT-vs-lexicon agreement rate. A genuinely different story that
+  happens to share many common words with an existing headline (same
+  company name, same generic terms like "quarterly"/"results") could in
+  principle be wrongly treated as a duplicate; this has not been measured
+  against real cross-source headline pairs since this sandbox has never
+  run `fetch_news_rss.py` against real RSS feeds (see the Phase 7
+  limitations below).
+- **Near-duplicate detection only ever runs inside `ingest_live_news`**,
+  i.e. only for `LIVE` headlines. It never compares against or removes
+  `DEV_SAMPLE` synthetic headlines, which are deliberately generated from
+  a small fixed template list and are not expected to coincidentally
+  collide with each other.
+- **The AI portfolio assistant's chat frontend has no server-side
+  conversation memory**, matching the backend's existing Phase 19/32
+  behavior -- `AssistantPage`'s message history is local React state
+  only, lost on refresh or navigation away. Each `POST /assistant/ask`
+  call is still fully independent; the frontend does not send prior
+  turns as context.
+- **The assistant frontend has never been exercised against a real
+  Claude API response in this sandbox**, for the same reason as the
+  backend (`ANTHROPIC_API_KEY` is unconfigured here, see the Phase 19
+  limitations below) -- its rendering of `sources_used`/
+  `guardrail_tripped`/`disclaimer` is tested against mocked
+  `AssistantAnswer` payloads (Vitest), not a live round trip.
+
 ## Real-Time Market Data (Phase 24)
 
 - **Bid/ask price, bid/ask quantity, and VWAP are always `null` for Angel
@@ -918,12 +1000,13 @@ Two real, concrete gaps were found and fixed:
   (Playwright screenshots, no console errors).
 
 **A genuine gap found but deliberately not addressed in this phase**:
-the AI portfolio assistant (Phase 19, extended Phase 32) has no
-frontend at all -- no page, no chat UI, nothing calls `POST /assistant/
-ask`. Building one is a new feature, not a polish pass on existing UI,
-and was judged out of scope for "Phase 33: UI/UX and Performance."
-Flagged here so it isn't lost; a future phase would need to design and
-build an assistant chat page.
+the AI portfolio assistant (Phase 19, extended Phase 32) had no
+frontend at all -- no page, no chat UI, nothing called `POST /assistant/
+ask`. Building one was a new feature, not a polish pass on existing UI,
+and was judged out of scope for "Phase 33: UI/UX and Performance." This
+was addressed in the real-data upgrade's Phase H -- see that section
+above -- which added `AssistantPage`/`services/assistant.ts` and the
+`/assistant` nav item.
 
 ## Infrastructure
 
